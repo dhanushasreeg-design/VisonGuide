@@ -2,6 +2,17 @@
 node_modules/
 backend/data/
 frontend/dist/
+ml/data/
+ml/checkpoints/
+ml/backups/
+ml/onnx_export/
+__pycache__/
+*.pyc
+.backups_2026_08_30/
+# 166MB ONNX file — exceeds GitHub's 100MB push limit. Must be deployed to
+# Vercel by a means other than a normal git commit (git-lfs, or uploading the
+# static asset directly) — see final report for details.
+frontend/public/models/
 *.png
 .claude/
 chatgpt_test.py
