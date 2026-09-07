@@ -186,7 +186,7 @@ export default function ArticleReaderPage() {
                         🔊 {reading === article.id ? "Reading..." : "Read"}
                       </button>
                       {reading === article.id && (
-                        <button onClick={stopSpeaking} style={s.stopBtnSmall}>⏹</button>
+                        <button onClick={stopSpeaking} style={s.stopBtnSmall} aria-label="Stop reading" title="Stop reading">⏹</button>
                       )}
                       <button onClick={() => setExpanded(expanded === article.id ? null : article.id)} style={s.expandBtn}>
                         {expanded === article.id ? "▲ Less" : "▼ More"}

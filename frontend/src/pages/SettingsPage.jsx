@@ -89,7 +89,7 @@ export default function SettingsPage() {
         ══════════════════════════════════ */}
         <Section title="♿ Accessibility Display Mode" color="#22c55e" C={C}>
           <p style={{ color: C.sub, fontSize: "14px", marginBottom: "18px" }}>
-            Enable the master accessibility mode or customise individual accessibility features below.
+            Enable the master accessibility mode or customize individual accessibility features below.
           </p>
 
           {/* Master toggle */}

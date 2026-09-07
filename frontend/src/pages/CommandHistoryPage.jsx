@@ -149,7 +149,8 @@ export default function CommandHistoryPage() {
             ))}
           </div>
           <input type="text" placeholder="Search commands..." value={search}
-            onChange={(e) => setSearch(e.target.value)} style={s.searchInput} />
+            onChange={(e) => setSearch(e.target.value)} style={s.searchInput}
+            aria-label="Search commands" />
         </div>
 
         {loading ? <div className="spinner" /> : filtered.length === 0 ? (

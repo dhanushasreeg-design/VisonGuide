@@ -396,7 +396,7 @@ export default function CameraOCRPage() {
                       🔊 {reading ? "Reading…" : "Read Again"}
                     </button>
                     {reading && (
-                      <button className="btn btn-ghost btn-sm" onClick={stopReading}>⏹</button>
+                      <button className="btn btn-ghost btn-sm" onClick={stopReading} aria-label="Stop reading" title="Stop reading">⏹</button>
                     )}
                     <button className="btn btn-ghost btn-sm"
                       onClick={() => navigator.clipboard?.writeText(scannedText)}>
