@@ -20,6 +20,12 @@ supabase
   .then(({ error }) => {
     if (error) {
       console.error("Supabase connection FAILED:", error.message);
+      // TEMP DIAGNOSTIC: error.message on a "TypeError: fetch failed" is a
+      // generic wrapper — the real network cause (ENOTFOUND/ECONNREFUSED/
+      // ETIMEDOUT/TLS/etc.) lives in error.cause. Never logs the key.
+      if (error.cause) {
+        console.error("  → underlying cause:", error.cause.code || error.cause.message || error.cause);
+      }
     } else {
       console.log("Supabase connected successfully:", supabaseUrl);
     }

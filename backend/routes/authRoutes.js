@@ -47,8 +47,10 @@ router.post("/register", async (req, res) => {
 
     res.status(201).json({ id: user.id, name: user.name, email: user.email, token: signToken(user) });
   } catch (err) {
-    console.error("[register]", err.message);
-    res.status(500).json({ message: "Registration failed. Please try again." });
+    const detail = err.cause?.message || err.message;
+    console.error("[register]", detail);
+    const isDev = process.env.NODE_ENV !== "production";
+    res.status(500).json({ message: isDev ? `Registration failed: ${detail}` : "Registration failed. Please try again." });
   }
 });
 
@@ -72,8 +74,10 @@ router.post("/login", async (req, res) => {
 
     res.json({ id: user.id, name: user.name, email: user.email, token: signToken(user) });
   } catch (err) {
-    console.error("[login]", err.message);
-    res.status(500).json({ message: "Login failed. Please try again." });
+    const detail = err.cause?.message || err.message;
+    console.error("[login]", detail);
+    const isDev = process.env.NODE_ENV !== "production";
+    res.status(500).json({ message: isDev ? `Login failed: ${detail}` : "Login failed. Please try again." });
   }
 });
 
