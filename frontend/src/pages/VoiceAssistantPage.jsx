@@ -1386,7 +1386,13 @@ export default function VoiceAssistantPage() {
         "emergency help",
         "read contact",
         "contact list",
-        "call for"
+        "call for",
+        // Bug fix: "call emergency" was parsed as "call a contact named
+        // emergency" (stripping "call" and treating what's left as a
+        // contact name) instead of triggering the SOS flow below. Excluded
+        // here so it falls through to the SOS branch instead.
+        "call emergency",
+        "emergency call"
       )
     ) {
       const name = t
@@ -1479,7 +1485,12 @@ export default function VoiceAssistantPage() {
         "please help",
         "send help",
         "ambulance",
-        "trigger sos"
+        "trigger sos",
+        // "call emergency" / "emergency call" / "make an emergency call"
+        // (the latter contains "emergency call" as a substring) — see the
+        // matching exclusion added to the CALL CONTACT branch above.
+        "call emergency",
+        "emergency call"
       )
     ) {
       reply =
@@ -1625,6 +1636,17 @@ export default function VoiceAssistantPage() {
 
           type = "navigation";
           nav = `${hit.k} near me`;
+        } else {
+          // Bug fix: "near me" alone (no place type — hospital/pharmacy/
+          // ATM/etc.) previously fell through everything else in this
+          // function to the generic backend-fallback "Sorry, I did not
+          // understand" reply, which isn't useful for a blind user who
+          // just said the wrong half of a two-part command. Ask what they
+          // want instead, same as a real assistant would.
+          reply =
+            "What would you like to find nearby? For example, hospital, pharmacy, ATM, police station, bus stop, or hotel.";
+
+          type = "clarify";
         }
       }
 
