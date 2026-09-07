@@ -4,14 +4,11 @@ const dotenv     = require("dotenv");
 const rateLimit  = require("express-rate-limit");
 const helmet     = require("helmet");
 const auth       = require("./middleware/auth");
-const multer     = require("multer");
-const axios      = require("axios");
-const FormData   = require("form-data");
 
 dotenv.config();
 
 /* ── Fail fast if required env vars are missing ── */
-["SUPABASE_URL", "SUPABASE_KEY", "API_KEY", "GROQ_API_KEY", "JWT_SECRET"].forEach(k => {
+["SUPABASE_URL", "SUPABASE_KEY", "API_KEY", "JWT_SECRET"].forEach(k => {
   if (!process.env[k]) {
     console.error(`[startup] Missing required environment variable: ${k}`);
     process.exit(1);
@@ -111,102 +108,21 @@ app.use("/api/navigation", require("./routes/navigationRoutes"));
 app.use("/api/locations",  require("./routes/locationRoutes"));
 app.use("/api/feedback",   require("./routes/feedbackRoutes"));
 
-/* ── SOS gets a stricter limit: 5 alerts / 15 min per IP ── */
-app.use("/api/sos", rateLimit({
+/* ── SOS gets a stricter limit: 5 alerts / 15 min per IP ──
+   Scoped to POST only — GET (viewing history, incl. the Dashboard's
+   auto-load) and DELETE must never count against the send budget, or a
+   user could get rate-limited out of sending a real emergency alert just
+   from browsing their own SOS history. ── */
+const sosSendLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   message: { message: "Too many SOS alerts. Please wait before sending another." },
-}));
+});
+app.use("/api/sos", (req, res, next) => {
+  if (req.method === "POST") return sosSendLimiter(req, res, next);
+  next();
+});
 app.use("/api/sos", require("./routes/sosRoutes"));
-
-/* ── Rate limit for Groq endpoints: 20 calls / 15 min per IP ── */
-const groqLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many AI requests. Please wait a moment before trying again." },
-});
-
-/* ── Image analysis via Groq LLaMA Vision API ── */
-const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-
-app.post("/api/analyze-image", groqLimiter, imageUpload.single("image"), async (req, res) => {
-  try {
-    const GROQ_KEY = process.env.GROQ_API_KEY;
-    if (!GROQ_KEY) return res.status(500).json({ error: "GROQ_API_KEY not configured" });
-    if (!req.file)  return res.status(400).json({ error: "No image provided" });
-
-    const imageBase64 = req.file.buffer.toString("base64");
-    const mimeType    = req.file.mimetype || "image/jpeg";
-
-    const groqRes = await axios.post(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: { url: `data:${mimeType};base64,${imageBase64}` },
-              },
-              {
-                type: "text",
-                text: "You are an accessibility assistant helping visually impaired users understand images. Describe this image clearly and concisely: list every visible object, their approximate positions (left, right, center, foreground, background), colors, and any visible text. Be specific but keep it under 3 sentences.",
-              },
-            ],
-          },
-        ],
-        max_tokens: 300,
-        temperature: 0.1,
-      },
-      {
-        headers: { Authorization: `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
-        timeout: 30000,
-      }
-    );
-
-    const description = (groqRes.data.choices?.[0]?.message?.content || "").trim();
-    res.json({ description });
-  } catch (err) {
-    console.error("[Vision] Error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Image analysis failed" });
-  }
-});
-
-/* ── Transcription via Groq Whisper API ── */
-const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
-
-app.post("/api/transcribe", groqLimiter, audioUpload.single("audio"), async (req, res) => {
-  try {
-    const GROQ_KEY = process.env.GROQ_API_KEY;
-    if (!GROQ_KEY) return res.status(500).json({ error: "GROQ_API_KEY not set in backend .env" });
-    if (!req.file)  return res.status(400).json({ error: "No audio file received" });
-
-    const form = new FormData();
-    form.append("file", req.file.buffer, {
-      filename:    "audio.webm",
-      contentType: req.file.mimetype || "audio/webm",
-    });
-    form.append("model",           "whisper-large-v3-turbo");
-    form.append("language",        "en");
-    form.append("response_format", "json");
-
-    const groqRes = await axios.post(
-      "https://api.groq.com/openai/v1/audio/transcriptions",
-      form,
-      { headers: { Authorization: `Bearer ${GROQ_KEY}`, ...form.getHeaders() }, timeout: 30000 }
-    );
-
-    const text = (groqRes.data.text || "").trim();
-    res.json({ text });
-  } catch (err) {
-    console.error("[Transcribe] Error:", err.response?.data || err.message);
-    res.status(500).json({ error: err.response?.data?.error?.message || "Transcription failed" });
-  }
-});
 
 /* ── Global error handler (must be last) ── */
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
