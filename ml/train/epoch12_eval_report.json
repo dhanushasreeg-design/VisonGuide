@@ -1,0 +1,87 @@
+{
+  "checkpoint": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\checkpoints\\accessibility_detr_v2_exp1_final_last",
+  "split": "test",
+  "threshold": 0.4,
+  "per_class": {
+    "wheelchair": {
+      "tp": 27,
+      "fp_duplicate": 0,
+      "fp_other": 11,
+      "fp_total": 11,
+      "fn": 13,
+      "num_gt": 40,
+      "precision": 0.7105263157894737,
+      "recall": 0.675,
+      "f1": 0.6923076923076923,
+      "ap_at_0.5": 0.6168777483681153
+    },
+    "white_cane": {
+      "tp": 136,
+      "fp_duplicate": 0,
+      "fp_other": 29,
+      "fp_total": 29,
+      "fn": 23,
+      "num_gt": 159,
+      "precision": 0.8242424242424242,
+      "recall": 0.8553459119496856,
+      "f1": 0.8395061728395062,
+      "ap_at_0.5": 0.8039103800200954
+    },
+    "pothole": {
+      "tp": 89,
+      "fp_duplicate": 0,
+      "fp_other": 152,
+      "fp_total": 152,
+      "fn": 97,
+      "num_gt": 186,
+      "precision": 0.36929460580912865,
+      "recall": 0.478494623655914,
+      "f1": 0.41686182669789235,
+      "ap_at_0.5": 0.3550334697494476
+    }
+  },
+  "stratified_recall": {
+    "size": {
+      "medium": {
+        "tp": 112,
+        "fn": 39,
+        "recall": 0.7417218543046358
+      },
+      "small": {
+        "tp": 41,
+        "fn": 74,
+        "recall": 0.3565217391304348
+      },
+      "large": {
+        "tp": 99,
+        "fn": 20,
+        "recall": 0.8319327731092437
+      }
+    },
+    "instances": {
+      "1": {
+        "tp": 87,
+        "fn": 20,
+        "recall": 0.8130841121495327
+      },
+      "2-4": {
+        "tp": 116,
+        "fn": 65,
+        "recall": 0.6408839779005525
+      },
+      "5+": {
+        "tp": 49,
+        "fn": 48,
+        "recall": 0.5051546391752577
+      }
+    }
+  },
+  "confidence_distribution": {
+    "tp_mean": 0.8546179115535721,
+    "tp_count": 252,
+    "fp_mean": 0.6288413025128344,
+    "fp_count": 192
+  },
+  "total_duplicate_detections": 0,
+  "total_images_evaluated": 200
+}

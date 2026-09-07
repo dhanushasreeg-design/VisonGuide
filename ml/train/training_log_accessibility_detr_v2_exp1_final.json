@@ -1,0 +1,822 @@
+{
+  "run_name": "accessibility_detr_v2_exp1_final",
+  "base_model": "facebook/detr-resnet-50",
+  "classes": [
+    "wheelchair",
+    "white_cane",
+    "pothole"
+  ],
+  "data_root": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\data\\prepared_v2",
+  "config": {
+    "batch_size": 4,
+    "accum_steps": 2,
+    "effective_batch_size": 8,
+    "num_epochs_max": 15,
+    "patience": 4,
+    "image_size": {
+      "shortest_edge": 480,
+      "longest_edge": 800
+    },
+    "lr_backbone": 1e-05,
+    "lr_other": 0.0001,
+    "augmentation": "flip+scale_jitter(380-480)+crop(>=70% box retention)+color_jitter, train split only",
+    "checkpoint_selection": "best minimum per-class recall on valid split @ threshold=0.40 + production NMS; val_loss is tie-breaker only"
+  },
+  "device": "cuda",
+  "run_complete": true,
+  "epochs_completed": 12,
+  "total_training_time_seconds": 3288.7930104732513,
+  "history": [
+    {
+      "epoch": 1,
+      "train": {
+        "loss": 2.0872019104501036,
+        "loss_ce": 0.6028078702536035,
+        "loss_bbox": 0.14456345241001628,
+        "loss_giou": 0.3807883889196401,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.4578425542072013,
+        "loss_ce": 0.40495165451257314,
+        "loss_bbox": 0.09401363772512586,
+        "loss_giou": 0.29141135665553586,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.0,
+        "white_cane": 0.0,
+        "pothole": 0.0
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": null,
+          "recall": 0.0,
+          "f1": null,
+          "ap_at_0.5": 0.0,
+          "tp": 0,
+          "fp_duplicate": 0,
+          "fp_other": 0,
+          "fn": 58,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": null,
+          "recall": 0.0,
+          "f1": null,
+          "ap_at_0.5": 0.0,
+          "tp": 0,
+          "fp_duplicate": 0,
+          "fp_other": 0,
+          "fn": 255,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": null,
+          "recall": 0.0,
+          "f1": null,
+          "ap_at_0.5": 0.0,
+          "tp": 0,
+          "fp_duplicate": 0,
+          "fp_other": 0,
+          "fn": 379,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.0,
+      "checkpoint_selection_metric": 0.0,
+      "epoch_time_seconds": 332.99675607681274,
+      "timing_breakdown_seconds": {
+        "train": 218.27105045318604,
+        "val_loss_eval": 38.96586489677429,
+        "val_recall_eval": 75.7598180770874
+      }
+    },
+    {
+      "epoch": 2,
+      "train": {
+        "loss": 1.4124491966151176,
+        "loss_ce": 0.37445461765882815,
+        "loss_bbox": 0.09348957122680038,
+        "loss_giou": 0.2852733592958526,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.206534452184483,
+        "loss_ce": 0.29044674033368073,
+        "loss_bbox": 0.07980617523814242,
+        "loss_giou": 0.25852841635545093,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.0,
+        "white_cane": 0.6862745098039216,
+        "pothole": 0.18733509234828497
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": null,
+          "recall": 0.0,
+          "f1": null,
+          "ap_at_0.5": 0.0,
+          "tp": 0,
+          "fp_duplicate": 0,
+          "fp_other": 0,
+          "fn": 58,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.8974358974358975,
+          "recall": 0.6862745098039216,
+          "f1": 0.7777777777777778,
+          "ap_at_0.5": 0.6574520370807058,
+          "tp": 175,
+          "fp_duplicate": 0,
+          "fp_other": 20,
+          "fn": 80,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.2297734627831715,
+          "recall": 0.18733509234828497,
+          "f1": 0.20639534883720928,
+          "ap_at_0.5": 0.06638496731416912,
+          "tp": 71,
+          "fp_duplicate": 0,
+          "fp_other": 238,
+          "fn": 308,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.0,
+      "checkpoint_selection_metric": 0.0,
+      "epoch_time_seconds": 338.53298783302307,
+      "timing_breakdown_seconds": {
+        "train": 281.0621917247772,
+        "val_loss_eval": 27.820429801940918,
+        "val_recall_eval": 29.650354146957397
+      }
+    },
+    {
+      "epoch": 3,
+      "train": {
+        "loss": 1.3180071486437575,
+        "loss_ce": 0.28601802948941574,
+        "loss_bbox": 0.09187929265874814,
+        "loss_giou": 0.2862963275785776,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.2423846727168117,
+        "loss_ce": 0.2561247875500057,
+        "loss_bbox": 0.08683909441309946,
+        "loss_giou": 0.27603220642992743,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.0,
+        "white_cane": 0.9176470588235294,
+        "pothole": 0.21899736147757257
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": null,
+          "recall": 0.0,
+          "f1": null,
+          "ap_at_0.5": 0.0,
+          "tp": 0,
+          "fp_duplicate": 0,
+          "fp_other": 0,
+          "fn": 58,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.9140625,
+          "recall": 0.9176470588235294,
+          "f1": 0.9158512720156556,
+          "ap_at_0.5": 0.9110689176239469,
+          "tp": 234,
+          "fp_duplicate": 0,
+          "fp_other": 22,
+          "fn": 21,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.20959595959595959,
+          "recall": 0.21899736147757257,
+          "f1": 0.21419354838709675,
+          "ap_at_0.5": 0.060528756234347836,
+          "tp": 83,
+          "fp_duplicate": 0,
+          "fp_other": 313,
+          "fn": 296,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.0,
+      "checkpoint_selection_metric": 0.0,
+      "epoch_time_seconds": 257.0220136642456,
+      "timing_breakdown_seconds": {
+        "train": 200.71060800552368,
+        "val_loss_eval": 27.246033668518066,
+        "val_recall_eval": 29.065361976623535
+      }
+    },
+    {
+      "epoch": 4,
+      "train": {
+        "loss": 1.1473105773329735,
+        "loss_ce": 0.25543997234645044,
+        "loss_bbox": 0.0764794667855777,
+        "loss_giou": 0.2547366342883795,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.1721951928403642,
+        "loss_ce": 0.2089448129689252,
+        "loss_bbox": 0.08073134308128997,
+        "loss_giou": 0.2797968303439794,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.3103448275862069,
+        "white_cane": 0.9058823529411765,
+        "pothole": 0.35092348284960423
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.6666666666666666,
+          "recall": 0.3103448275862069,
+          "f1": 0.4235294117647059,
+          "ap_at_0.5": 0.22298850574712648,
+          "tp": 18,
+          "fp_duplicate": 0,
+          "fp_other": 9,
+          "fn": 40,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.7549019607843137,
+          "recall": 0.9058823529411765,
+          "f1": 0.823529411764706,
+          "ap_at_0.5": 0.8879008043391271,
+          "tp": 231,
+          "fp_duplicate": 0,
+          "fp_other": 75,
+          "fn": 24,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.3546666666666667,
+          "recall": 0.35092348284960423,
+          "f1": 0.3527851458885942,
+          "ap_at_0.5": 0.14628664745275413,
+          "tp": 133,
+          "fp_duplicate": 0,
+          "fp_other": 242,
+          "fn": 246,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.3103448275862069,
+      "checkpoint_selection_metric": 0.3103448275862069,
+      "epoch_time_seconds": 259.29267501831055,
+      "timing_breakdown_seconds": {
+        "train": 201.58711647987366,
+        "val_loss_eval": 27.760661602020264,
+        "val_recall_eval": 29.944883346557617
+      }
+    },
+    {
+      "epoch": 5,
+      "train": {
+        "loss": 1.1114884074381057,
+        "loss_ce": 0.22445510950018752,
+        "loss_bbox": 0.07509100302419763,
+        "loss_giou": 0.2557891403582502,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.0984232856167688,
+        "loss_ce": 0.20119393527231835,
+        "loss_bbox": 0.07587418746617106,
+        "loss_giou": 0.258929208472923,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.46551724137931033,
+        "white_cane": 0.9490196078431372,
+        "pothole": 0.38258575197889183
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.7941176470588235,
+          "recall": 0.46551724137931033,
+          "f1": 0.5869565217391304,
+          "ap_at_0.5": 0.3951572008113589,
+          "tp": 27,
+          "fp_duplicate": 0,
+          "fp_other": 7,
+          "fn": 31,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.8344827586206897,
+          "recall": 0.9490196078431372,
+          "f1": 0.8880733944954128,
+          "ap_at_0.5": 0.9198909670130365,
+          "tp": 242,
+          "fp_duplicate": 1,
+          "fp_other": 47,
+          "fn": 13,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.25846702317290554,
+          "recall": 0.38258575197889183,
+          "f1": 0.3085106382978724,
+          "ap_at_0.5": 0.164538272423852,
+          "tp": 145,
+          "fp_duplicate": 1,
+          "fp_other": 415,
+          "fn": 234,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.38258575197889183,
+      "checkpoint_selection_metric": 0.38258575197889183,
+      "epoch_time_seconds": 260.38492488861084,
+      "timing_breakdown_seconds": {
+        "train": 202.20665049552917,
+        "val_loss_eval": 28.07967495918274,
+        "val_recall_eval": 30.09859013557434
+      }
+    },
+    {
+      "epoch": 6,
+      "train": {
+        "loss": 1.0790266406504398,
+        "loss_ce": 0.19419248593832425,
+        "loss_bbox": 0.07526522047044908,
+        "loss_giou": 0.2542540270319961,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.0651611801650789,
+        "loss_ce": 0.1729682914102105,
+        "loss_bbox": 0.07617774076276908,
+        "loss_giou": 0.2556520936389764,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.896551724137931,
+        "white_cane": 0.9764705882352941,
+        "pothole": 0.42744063324538256
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.5416666666666666,
+          "recall": 0.896551724137931,
+          "f1": 0.6753246753246753,
+          "ap_at_0.5": 0.7084068840188822,
+          "tp": 52,
+          "fp_duplicate": 0,
+          "fp_other": 44,
+          "fn": 6,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.8469387755102041,
+          "recall": 0.9764705882352941,
+          "f1": 0.907103825136612,
+          "ap_at_0.5": 0.9698629892742254,
+          "tp": 249,
+          "fp_duplicate": 1,
+          "fp_other": 44,
+          "fn": 6,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.3103448275862069,
+          "recall": 0.42744063324538256,
+          "f1": 0.3596004439511654,
+          "ap_at_0.5": 0.23166120664598583,
+          "tp": 162,
+          "fp_duplicate": 1,
+          "fp_other": 359,
+          "fn": 217,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.42744063324538256,
+      "checkpoint_selection_metric": 0.42744063324538256,
+      "epoch_time_seconds": 260.0250561237335,
+      "timing_breakdown_seconds": {
+        "train": 201.90281558036804,
+        "val_loss_eval": 27.864947080612183,
+        "val_recall_eval": 30.25728154182434
+      }
+    },
+    {
+      "epoch": 7,
+      "train": {
+        "loss": 1.0118971910882504,
+        "loss_ce": 0.16972401532582304,
+        "loss_bbox": 0.07199043580429985,
+        "loss_giou": 0.24111049988881705,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.1070253619993176,
+        "loss_ce": 0.17442096192907128,
+        "loss_bbox": 0.08084825714360233,
+        "loss_giou": 0.2641815583187121,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.896551724137931,
+        "white_cane": 0.9725490196078431,
+        "pothole": 0.40369393139841686
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.6419753086419753,
+          "recall": 0.896551724137931,
+          "f1": 0.7482014388489209,
+          "ap_at_0.5": 0.7716864915481441,
+          "tp": 52,
+          "fp_duplicate": 0,
+          "fp_other": 29,
+          "fn": 6,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.8857142857142857,
+          "recall": 0.9725490196078431,
+          "f1": 0.9271028037383177,
+          "ap_at_0.5": 0.9620547769053475,
+          "tp": 248,
+          "fp_duplicate": 1,
+          "fp_other": 31,
+          "fn": 7,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.2870544090056285,
+          "recall": 0.40369393139841686,
+          "f1": 0.3355263157894737,
+          "ap_at_0.5": 0.24300904265526765,
+          "tp": 153,
+          "fp_duplicate": 5,
+          "fp_other": 375,
+          "fn": 226,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.40369393139841686,
+      "checkpoint_selection_metric": 0.40369393139841686,
+      "epoch_time_seconds": 256.4781928062439,
+      "timing_breakdown_seconds": {
+        "train": 199.25415802001953,
+        "val_loss_eval": 27.57600688934326,
+        "val_recall_eval": 29.64801836013794
+      }
+    },
+    {
+      "epoch": 8,
+      "train": {
+        "loss": 0.9981172450996459,
+        "loss_ce": 0.15782548098062027,
+        "loss_bbox": 0.07074711923586562,
+        "loss_giou": 0.24327808448133317,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.0380035357342825,
+        "loss_ce": 0.14083818866250417,
+        "loss_bbox": 0.07730409299471865,
+        "loss_giou": 0.2553224398030175,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.9655172413793104,
+        "white_cane": 0.9686274509803922,
+        "pothole": 0.47757255936675463
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.7088607594936709,
+          "recall": 0.9655172413793104,
+          "f1": 0.8175182481751826,
+          "ap_at_0.5": 0.8722196709985229,
+          "tp": 56,
+          "fp_duplicate": 0,
+          "fp_other": 23,
+          "fn": 2,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.9216417910447762,
+          "recall": 0.9686274509803922,
+          "f1": 0.9445506692160612,
+          "ap_at_0.5": 0.962390572342716,
+          "tp": 247,
+          "fp_duplicate": 0,
+          "fp_other": 21,
+          "fn": 8,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.21496437054631828,
+          "recall": 0.47757255936675463,
+          "f1": 0.2964782964782965,
+          "ap_at_0.5": 0.23150480009655577,
+          "tp": 181,
+          "fp_duplicate": 0,
+          "fp_other": 661,
+          "fn": 198,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.47757255936675463,
+      "checkpoint_selection_metric": 0.47757255936675463,
+      "epoch_time_seconds": 258.86396193504333,
+      "timing_breakdown_seconds": {
+        "train": 201.23823142051697,
+        "val_loss_eval": 27.735962867736816,
+        "val_recall_eval": 29.889758110046387
+      }
+    },
+    {
+      "epoch": 9,
+      "train": {
+        "loss": 0.9504210765850036,
+        "loss_ce": 0.14403096641948882,
+        "loss_bbox": 0.06721748857996723,
+        "loss_giou": 0.23515133248602457,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.137914923882043,
+        "loss_ce": 0.1481308081075204,
+        "loss_bbox": 0.08330424050628035,
+        "loss_giou": 0.28663145488610975,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.9827586206896551,
+        "white_cane": 0.9490196078431372,
+        "pothole": 0.41952506596306066
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.5377358490566038,
+          "recall": 0.9827586206896551,
+          "f1": 0.695121951219512,
+          "ap_at_0.5": 0.8697590978597983,
+          "tp": 57,
+          "fp_duplicate": 1,
+          "fp_other": 48,
+          "fn": 1,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.8344827586206897,
+          "recall": 0.9490196078431372,
+          "f1": 0.8880733944954128,
+          "ap_at_0.5": 0.934443530209433,
+          "tp": 242,
+          "fp_duplicate": 0,
+          "fp_other": 48,
+          "fn": 13,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.1678986272439282,
+          "recall": 0.41952506596306066,
+          "f1": 0.2398190045248869,
+          "ap_at_0.5": 0.1522586250638648,
+          "tp": 159,
+          "fp_duplicate": 1,
+          "fp_other": 787,
+          "fn": 220,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.41952506596306066,
+      "checkpoint_selection_metric": 0.41952506596306066,
+      "epoch_time_seconds": 260.78521966934204,
+      "timing_breakdown_seconds": {
+        "train": 203.25108242034912,
+        "val_loss_eval": 27.661406755447388,
+        "val_recall_eval": 29.872721195220947
+      }
+    },
+    {
+      "epoch": 10,
+      "train": {
+        "loss": 1.3879709328584215,
+        "loss_ce": 0.18197507858325906,
+        "loss_bbox": 0.1091201350816149,
+        "loss_giou": 0.33019758945212085,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.3268115487363603,
+        "loss_ce": 0.16176400004230715,
+        "loss_bbox": 0.10372537781518919,
+        "loss_giou": 0.32321032964520985,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.896551724137931,
+        "white_cane": 0.9450980392156862,
+        "pothole": 0.3113456464379947
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.6753246753246753,
+          "recall": 0.896551724137931,
+          "f1": 0.7703703703703704,
+          "ap_at_0.5": 0.8057478484327397,
+          "tp": 52,
+          "fp_duplicate": 0,
+          "fp_other": 25,
+          "fn": 6,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.9060150375939849,
+          "recall": 0.9450980392156862,
+          "f1": 0.9251439539347408,
+          "ap_at_0.5": 0.9403192258313943,
+          "tp": 241,
+          "fp_duplicate": 0,
+          "fp_other": 25,
+          "fn": 14,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.0979253112033195,
+          "recall": 0.3113456464379947,
+          "f1": 0.148989898989899,
+          "ap_at_0.5": 0.09255986110485273,
+          "tp": 118,
+          "fp_duplicate": 4,
+          "fp_other": 1083,
+          "fn": 261,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.3113456464379947,
+      "checkpoint_selection_metric": 0.3113456464379947,
+      "epoch_time_seconds": 259.5178985595703,
+      "timing_breakdown_seconds": {
+        "train": 201.07556414604187,
+        "val_loss_eval": 28.183046340942383,
+        "val_recall_eval": 30.259278535842896
+      }
+    },
+    {
+      "epoch": 11,
+      "train": {
+        "loss": 1.163807345039033,
+        "loss_ce": 0.16204033896049602,
+        "loss_bbox": 0.08669342127866408,
+        "loss_giou": 0.28414994995406967,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.1017181699474652,
+        "loss_ce": 0.13701906864298508,
+        "loss_bbox": 0.08081697784709158,
+        "loss_giou": 0.2803071066047306,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.9482758620689655,
+        "white_cane": 0.9137254901960784,
+        "pothole": 0.47493403693931396
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.6395348837209303,
+          "recall": 0.9482758620689655,
+          "f1": 0.763888888888889,
+          "ap_at_0.5": 0.8453843603692828,
+          "tp": 55,
+          "fp_duplicate": 0,
+          "fp_other": 31,
+          "fn": 3,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.823321554770318,
+          "recall": 0.9137254901960784,
+          "f1": 0.8661710037174721,
+          "ap_at_0.5": 0.8860352804888288,
+          "tp": 233,
+          "fp_duplicate": 2,
+          "fp_other": 48,
+          "fn": 22,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.16981132075471697,
+          "recall": 0.47493403693931396,
+          "f1": 0.2501737317581654,
+          "ap_at_0.5": 0.21008468693486693,
+          "tp": 180,
+          "fp_duplicate": 2,
+          "fp_other": 878,
+          "fn": 199,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.47493403693931396,
+      "checkpoint_selection_metric": 0.47493403693931396,
+      "epoch_time_seconds": 260.5121591091156,
+      "timing_breakdown_seconds": {
+        "train": 202.25947856903076,
+        "val_loss_eval": 28.07608389854431,
+        "val_recall_eval": 30.176587104797363
+      }
+    },
+    {
+      "epoch": 12,
+      "train": {
+        "loss": 0.9833589334120142,
+        "loss_ce": 0.1301954721368136,
+        "loss_bbox": 0.07195061923282102,
+        "loss_giou": 0.24670518310542436,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.158451683819294,
+        "loss_ce": 0.14081652333132094,
+        "loss_bbox": 0.09283667642416225,
+        "loss_giou": 0.2767258894940217,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.9482758620689655,
+        "white_cane": 0.9725490196078431,
+        "pothole": 0.45382585751978893
+      },
+      "valid_per_class_metrics": {
+        "wheelchair": {
+          "precision": 0.7236842105263158,
+          "recall": 0.9482758620689655,
+          "f1": 0.8208955223880597,
+          "ap_at_0.5": 0.8449768567975088,
+          "tp": 55,
+          "fp_duplicate": 1,
+          "fp_other": 20,
+          "fn": 3,
+          "num_gt": 58
+        },
+        "white_cane": {
+          "precision": 0.915129151291513,
+          "recall": 0.9725490196078431,
+          "f1": 0.9429657794676806,
+          "ap_at_0.5": 0.9630731582334209,
+          "tp": 248,
+          "fp_duplicate": 0,
+          "fp_other": 23,
+          "fn": 7,
+          "num_gt": 255
+        },
+        "pothole": {
+          "precision": 0.3972286374133949,
+          "recall": 0.45382585751978893,
+          "f1": 0.4236453201970444,
+          "ap_at_0.5": 0.3098398366789456,
+          "tp": 172,
+          "fp_duplicate": 1,
+          "fp_other": 260,
+          "fn": 207,
+          "num_gt": 379
+        }
+      },
+      "valid_min_class_recall": 0.45382585751978893,
+      "checkpoint_selection_metric": 0.45382585751978893,
+      "epoch_time_seconds": 258.631192445755,
+      "timing_breakdown_seconds": {
+        "train": 201.34798336029053,
+        "val_loss_eval": 27.558162212371826,
+        "val_recall_eval": 29.72503423690796
+      }
+    }
+  ],
+  "best_epoch": 8,
+  "best_min_class_recall": 0.47757255936675463,
+  "best_val_loss_at_best_recall": 1.0380035357342825,
+  "best_checkpoint": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\checkpoints\\accessibility_detr_v2_exp1_final",
+  "final_test_loss_only_metrics": {
+    "loss": 1.2052983808517457,
+    "loss_ce": 0.15290576880797743,
+    "loss_bbox": 0.09108467765152455,
+    "loss_giou": 0.2984846070408821,
+    "n_batches": 50
+  }
+}

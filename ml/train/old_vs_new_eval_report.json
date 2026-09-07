@@ -1,0 +1,183 @@
+{
+  "data_root": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\data\\prepared_v2",
+  "split_evaluated": "test",
+  "threshold": 0.4,
+  "nms": {
+    "iou_threshold": 0.45,
+    "overlap_threshold": 0.9
+  },
+  "old": {
+    "checkpoint": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\checkpoints\\accessibility_detr_best",
+    "split": "test",
+    "threshold": 0.4,
+    "per_class": {
+      "wheelchair": {
+        "tp": 31,
+        "fp_duplicate": 0,
+        "fp_other": 21,
+        "fp_total": 21,
+        "fn": 9,
+        "num_gt": 40,
+        "precision": 0.5961538461538461,
+        "recall": 0.775,
+        "f1": 0.6739130434782609,
+        "ap_at_0.5": 0.6900966055221376
+      },
+      "white_cane": {
+        "tp": 150,
+        "fp_duplicate": 0,
+        "fp_other": 11,
+        "fp_total": 11,
+        "fn": 9,
+        "num_gt": 159,
+        "precision": 0.9316770186335404,
+        "recall": 0.9433962264150944,
+        "f1": 0.9375,
+        "ap_at_0.5": 0.9386202694451853
+      },
+      "pothole": {
+        "tp": 112,
+        "fp_duplicate": 0,
+        "fp_other": 185,
+        "fp_total": 185,
+        "fn": 74,
+        "num_gt": 186,
+        "precision": 0.3771043771043771,
+        "recall": 0.6021505376344086,
+        "f1": 0.46376811594202905,
+        "ap_at_0.5": 0.4772616178464633
+      }
+    },
+    "stratified_recall": {
+      "size": {
+        "medium": {
+          "tp": 128,
+          "fn": 23,
+          "recall": 0.847682119205298
+        },
+        "small": {
+          "tp": 59,
+          "fn": 56,
+          "recall": 0.5130434782608696
+        },
+        "large": {
+          "tp": 106,
+          "fn": 13,
+          "recall": 0.8907563025210085
+        }
+      },
+      "instances": {
+        "1": {
+          "tp": 93,
+          "fn": 14,
+          "recall": 0.8691588785046729
+        },
+        "2-4": {
+          "tp": 141,
+          "fn": 40,
+          "recall": 0.7790055248618785
+        },
+        "5+": {
+          "tp": 59,
+          "fn": 38,
+          "recall": 0.6082474226804123
+        }
+      }
+    },
+    "confidence_distribution": {
+      "tp_mean": 0.8555272051702181,
+      "tp_count": 293,
+      "fp_mean": 0.607748624778563,
+      "fp_count": 217
+    },
+    "total_duplicate_detections": 0,
+    "total_images_evaluated": 200
+  },
+  "new": {
+    "checkpoint": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\checkpoints\\accessibility_detr_v2_exp1_final",
+    "split": "test",
+    "threshold": 0.4,
+    "per_class": {
+      "wheelchair": {
+        "tp": 31,
+        "fp_duplicate": 1,
+        "fp_other": 14,
+        "fp_total": 15,
+        "fn": 9,
+        "num_gt": 40,
+        "precision": 0.6739130434782609,
+        "recall": 0.775,
+        "f1": 0.7209302325581396,
+        "ap_at_0.5": 0.6395497728651006
+      },
+      "white_cane": {
+        "tp": 140,
+        "fp_duplicate": 1,
+        "fp_other": 21,
+        "fp_total": 22,
+        "fn": 19,
+        "num_gt": 159,
+        "precision": 0.8641975308641975,
+        "recall": 0.8805031446540881,
+        "f1": 0.8722741433021806,
+        "ap_at_0.5": 0.8239034464073195
+      },
+      "pothole": {
+        "tp": 96,
+        "fp_duplicate": 0,
+        "fp_other": 388,
+        "fp_total": 388,
+        "fn": 90,
+        "num_gt": 186,
+        "precision": 0.19834710743801653,
+        "recall": 0.5161290322580645,
+        "f1": 0.2865671641791045,
+        "ap_at_0.5": 0.29862507256200843
+      }
+    },
+    "stratified_recall": {
+      "size": {
+        "medium": {
+          "tp": 118,
+          "fn": 33,
+          "recall": 0.7814569536423841
+        },
+        "small": {
+          "tp": 58,
+          "fn": 57,
+          "recall": 0.5043478260869565
+        },
+        "large": {
+          "tp": 91,
+          "fn": 28,
+          "recall": 0.7647058823529411
+        }
+      },
+      "instances": {
+        "1": {
+          "tp": 88,
+          "fn": 19,
+          "recall": 0.822429906542056
+        },
+        "2-4": {
+          "tp": 122,
+          "fn": 59,
+          "recall": 0.6740331491712708
+        },
+        "5+": {
+          "tp": 57,
+          "fn": 40,
+          "recall": 0.5876288659793815
+        }
+      }
+    },
+    "confidence_distribution": {
+      "tp_mean": 0.7872830039999458,
+      "tp_count": 267,
+      "fp_mean": 0.6072939855912153,
+      "fp_count": 425
+    },
+    "total_duplicate_detections": 2,
+    "total_images_evaluated": 200
+  }
+}

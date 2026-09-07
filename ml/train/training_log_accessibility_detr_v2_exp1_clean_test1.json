@@ -1,0 +1,71 @@
+{
+  "run_name": "accessibility_detr_v2_exp1_clean_test1",
+  "base_model": "facebook/detr-resnet-50",
+  "classes": [
+    "wheelchair",
+    "white_cane",
+    "pothole"
+  ],
+  "data_root": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\data\\prepared_v2",
+  "config": {
+    "batch_size": 4,
+    "accum_steps": 2,
+    "effective_batch_size": 8,
+    "num_epochs_max": 1,
+    "patience": 4,
+    "image_size": {
+      "shortest_edge": 480,
+      "longest_edge": 800
+    },
+    "lr_backbone": 1e-05,
+    "lr_other": 0.0001,
+    "augmentation": "flip+scale_jitter(380-480)+crop(>=70% box retention)+color_jitter, train split only",
+    "checkpoint_selection": "best minimum per-class recall on valid split @ threshold=0.40 + production NMS; val_loss is tie-breaker only"
+  },
+  "device": "cuda",
+  "run_complete": true,
+  "epochs_completed": 1,
+  "total_training_time_seconds": 303.3475878238678,
+  "history": [
+    {
+      "epoch": 1,
+      "train": {
+        "loss": 2.0574407501423613,
+        "loss_ce": 0.602868646462547,
+        "loss_bbox": 0.14005232064865847,
+        "loss_giou": 0.3771552509885836,
+        "n_batches": 376
+      },
+      "valid_loss": {
+        "loss": 1.4186158726612728,
+        "loss_ce": 0.45649238399885317,
+        "loss_bbox": 0.08251114801883146,
+        "loss_giou": 0.2747838758622055,
+        "n_batches": 108
+      },
+      "valid_per_class_recall": {
+        "wheelchair": 0.0,
+        "white_cane": 0.0,
+        "pothole": 0.0
+      },
+      "valid_min_class_recall": 0.0,
+      "epoch_time_seconds": 286.3306143283844,
+      "timing_breakdown_seconds": {
+        "train": 216.7567093372345,
+        "val_loss_eval": 32.90695309638977,
+        "val_recall_eval": 36.666943073272705
+      }
+    }
+  ],
+  "best_epoch": 1,
+  "best_min_class_recall": 0.0,
+  "best_val_loss_at_best_recall": 1.4186158726612728,
+  "best_checkpoint": "C:\\Users\\Asus\\Desktop\\VisionGuideAI\\ml\\checkpoints\\accessibility_detr_v2_exp1_clean_test1",
+  "final_test_loss_only_metrics": {
+    "loss": 1.673850028514862,
+    "loss_ce": 0.5056046783924103,
+    "loss_bbox": 0.10066324152052403,
+    "loss_giou": 0.3324645721912384,
+    "n_batches": 50
+  }
+}
