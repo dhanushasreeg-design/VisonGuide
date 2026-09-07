@@ -62,11 +62,16 @@ const NAVIGATION_KEYWORDS = [
   "home", "college", "office", "school"
 ];
 
+/* "hi" deliberately excluded — plain substring matching below would match
+   it inside unrelated words like "history", misrouting them to a greeting
+   reply instead of falling through to their real handler. Checked as its
+   own word via a regex instead (see isGreeting below). */
 const GREETING_KEYWORDS = [
-  "hello", "hi", "hey", "good morning", "good afternoon",
+  "hello", "hey", "good morning", "good afternoon",
   "good evening", "how are you", "who are you", "visionguide",
   "greetings", "what's up", "howdy"
 ];
+const HI_RE = /\bhi\b/;
 
 /* ── helper ── */
 const has = (t, keywords) => keywords.some(k => t.includes(k));
@@ -139,7 +144,7 @@ router.post("/", async (req, res) => {
       responseText = `Opening navigation for ${commandText}.`;
       commandType  = "navigation";
 
-    } else if (has(t, GREETING_KEYWORDS)) {
+    } else if (has(t, GREETING_KEYWORDS) || HI_RE.test(t)) {
       responseText = "Hello, I am VisionGuide AI. How can I help you?";
       commandType  = "greeting";
     }

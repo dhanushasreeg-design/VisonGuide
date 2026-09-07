@@ -1250,7 +1250,6 @@ export default function VoiceAssistantPage() {
     if (
       has(
         "hello",
-        "hi",
         "hey",
         "good morning",
         "good evening",
@@ -1258,7 +1257,12 @@ export default function VoiceAssistantPage() {
         "how are you",
         "who are you",
         "visionguide"
-      )
+      ) ||
+      // Bug fix: "hi" as a plain has()/includes() substring matched inside
+      // unrelated words — "history" (has("hi","story"?) no, just "hi" +
+      // "story") was being greeted instead of reaching command history
+      // handling below. Word-boundary check keeps "hi" as a real word only.
+      /\bhi\b/.test(t)
     ) {
       reply =
         "Hello! I am VisionGuide AI, your voice assistant. How can I help you today?";
