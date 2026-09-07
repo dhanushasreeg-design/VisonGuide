@@ -269,7 +269,7 @@ export default function DashboardLayout({ children }) {
   }, []);
 
   const startWake = useCallback(() => {
-    if (!mountedRef.current || cmdMode.current || wakeRunning.current) return;
+    if (!mountedRef.current || cmdMode.current || wakeRunning.current || location.pathname === "/dashboard/voice") return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
 
