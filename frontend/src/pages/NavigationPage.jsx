@@ -442,6 +442,11 @@ export default function NavigationPage() {
       const places = await searchNearbyPlaces(cat, userLat, userLon);
       if (nearbyStopRef.current) return [];
       if (!places || places.length === 0) {
+        const widerPlaces = await searchNearbyPlaces(cat, userLat, userLon, { radiusKm: 25.0 });
+        if (widerPlaces && widerPlaces.length > 0) {
+          if (!nearbyStopRef.current) setNearbyPlaces(widerPlaces);
+          return widerPlaces;
+        }
         const catWord = cat === "all" ? "places" : `${categoryWordFor(cat)}`;
         const msg = `No ${catWord} found near your location.`;
         setNearbyPlaces([]);
@@ -485,6 +490,14 @@ export default function NavigationPage() {
       const places = await searchNearbyPlaces(cat, pos.lat, pos.lon);
       if (nearbyStopRef.current) return;
       if (!places || places.length === 0) {
+        // Automatic wider fallback so user NEVER gets stuck on "No pharmacies found"
+        const widerPlaces = await searchNearbyPlaces(cat, pos.lat, pos.lon, { radiusKm: 25.0 });
+        if (widerPlaces && widerPlaces.length > 0) {
+          setNearbyPlaces(widerPlaces);
+          setNearbyCategory(cat);
+          speak(`Found ${widerPlaces.length} nearby ${catWord}. Select any place to navigate.`);
+          return;
+        }
         const msg = `No ${catWord} found near your location.`;
         setNearbyPlaces([]);
         setNearbyError(msg);
@@ -509,16 +522,17 @@ export default function NavigationPage() {
 
   /* Audio reading of nearby places without asking for Option A or B */
   const readNearbyPlacesAloud = () => {
-    const filtered = nearbyCategory === "all"
+    const filtered = (nearbyCategory === "all" || !nearbyCategory)
       ? nearbyPlaces
-      : nearbyPlaces.filter((p) => p.amenity === nearbyCategory);
-    if (!filtered.length) {
+      : nearbyPlaces.filter((p) => p.amenity === nearbyCategory || !p.amenity);
+    const displayList = filtered.length > 0 ? filtered : nearbyPlaces;
+    if (!displayList.length) {
       speak("No nearby places to read.");
       return;
     }
-    const top = filtered.slice(0, 5);
+    const top = displayList.slice(0, 5);
     const catLabel = nearbyCategory === "all" ? "places" : `${categoryWordFor(nearbyCategory)}`;
-    let text = `Found ${filtered.length} nearby ${catLabel}. `;
+    let text = `Found ${displayList.length} nearby ${catLabel}. `;
     top.forEach((p, i) => {
       const distText = p.formattedDist || (p.distM != null ? `${fmtDist(p.distM)} away` : "");
       text += `${i + 1}: ${p.name}, ${distText}. `;
@@ -1761,10 +1775,11 @@ export default function NavigationPage() {
 
           {/* Grid of Nearby Place Cards with Show All */}
           {(() => {
-            const filtered = nearbyCategory === "all"
+            const filtered = (nearbyCategory === "all" || !nearbyCategory)
               ? nearbyPlaces
-              : nearbyPlaces.filter((p) => p.amenity === nearbyCategory);
-            const shown = nearbyExpanded ? filtered : filtered.slice(0, 5);
+              : nearbyPlaces.filter((p) => p.amenity === nearbyCategory || !p.amenity);
+            const displayList = filtered.length > 0 ? filtered : nearbyPlaces;
+            const shown = nearbyExpanded ? displayList : displayList.slice(0, 5);
             if (!shown.length) return null;
 
             return (
@@ -1867,7 +1882,7 @@ export default function NavigationPage() {
                 </div>
 
                 {/* Show All / Show Fewer Button */}
-                {filtered.length > 5 && (
+                {displayList.length > 5 && (
                   <button
                     type="button"
                     onClick={() => setNearbyExpanded((v) => !v)}
@@ -1886,10 +1901,10 @@ export default function NavigationPage() {
                       alignItems: "center",
                       gap: "6px",
                     }}
-                    aria-label={nearbyExpanded ? "Show fewer nearby places" : `Show all ${filtered.length} nearby places`}
+                    aria-label={nearbyExpanded ? "Show fewer nearby places" : `Show all ${displayList.length} nearby places`}
                   >
                     <span>{nearbyExpanded ? "▲" : "▼"}</span>
-                    <span>{nearbyExpanded ? "Show fewer" : `Show all ${filtered.length} nearby places`}</span>
+                    <span>{nearbyExpanded ? "Show fewer" : `Show all ${displayList.length} nearby places`}</span>
                   </button>
                 )}
               </>
