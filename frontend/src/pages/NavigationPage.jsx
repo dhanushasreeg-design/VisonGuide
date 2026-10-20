@@ -3,6 +3,22 @@ import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { useAccessibility } from "../context/AccessibilityContext";
 import API from "../api";
+import {
+  ROUTING_MODES as MODES,
+  classifyAccuracy,
+  computeDynamicOffRouteThreshold,
+  checkArrivalEligibility,
+  estimateTravelDuration as estimateDuration,
+  isValidCoordinate,
+  haversineM,
+  haversineKm,
+  formatDistanceForSpeech,
+  buildCleanAddress,
+  cleanPlaceName,
+  searchNearbyPlaces,
+  WALK_SPEED_MPS,
+  CYCLE_SPEED_MPS,
+} from "../lib/routingService";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SAFE JSON — catches XML / HTML error pages from public APIs
@@ -11,6 +27,9 @@ const safeJson = async (res) => {
   const ct = res.headers.get("content-type") || "";
   if (!ct.includes("json")) {
     await res.text();
+    if (res.status === 504 || res.status === 502 || res.status === 503) {
+      throw new Error("GATEWAY_TIMEOUT");
+    }
     throw new Error(`Server returned an error (HTTP ${res.status}). Please try again.`);
   }
   return res.json();
@@ -73,20 +92,6 @@ const fmtETA = (seconds) => {
   return eta.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   HAVERSINE DISTANCE (returns metres)
-───────────────────────────────────────────────────────────────────────────── */
-const haversineM = (lat1, lon1, lat2, lon2) => {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-const haversineKm = (lat1, lon1, lat2, lon2) => haversineM(lat1, lon1, lat2, lon2) / 1000;
 
 /* Runs a promise against a hard wall-clock deadline. Used as a backstop
    around the whole route-fetch flow so no internal await — even one we
@@ -113,33 +118,15 @@ const letterLabel = (i) => {
 const withLabels = (arr) => arr.map((p, i) => ({ ...p, label: letterLabel(i) }));
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   TRANSPORT MODES
-   Bus/Train are intentionally not offered — the routing provider used here
-   (OSRM) has no transit support, so there is no reliable, honest route to
-   show for them right now.
-   Bike / Walk → the public OSRM demo server used here only actually hosts a
-   driving profile: requesting "cycling" or "foot" silently returns the exact
-   same route/duration as "driving" (verified against router.project-osrm.org).
-   So we still use OSRM for road-following geometry/steps on those modes, but
-   never trust its duration for them — see estimateDuration() below.
+   TRANSPORT MODES & PEDESTRIAN MAPPING (Zero API Keys)
+   Walk: OpenStreetMap Germany routed-foot (routes through authentic pedestrian
+   footways, pedestrian subways, and alleyways) with failover to OSRM.
+   Bike: routed-bike with failover to OSRM.
+   Car:  OSRM driving with failover to routed-car.
+   MODES, WALK_SPEED_MPS, CYCLE_SPEED_MPS, and estimateDuration are imported
+   from ../lib/routingService.
 ───────────────────────────────────────────────────────────────────────────── */
-const MODES = [
-  { key: "driving", label: "Car",   icon: "🚗", osrm: "driving", gmapsDirflg: "d", travelmode: "driving"   },
-  { key: "cycling", label: "Bike",  icon: "🚲", osrm: "cycling", gmapsDirflg: "b", travelmode: "bicycling" },
-  { key: "foot",    label: "Walk",  icon: "🚶", osrm: "foot",    gmapsDirflg: "w", travelmode: "walking"   },
-];
 
-/* OSRM's own duration is only trustworthy for the driving profile (see note
-   above). For cycling/foot we derive an honest estimate from the routed
-   distance using typical average speeds, and always flag it as an estimate
-   so the UI/voice output says "approximately" instead of claiming precision. */
-const WALK_SPEED_MPS  = 1.4;  // ~5 km/h
-const CYCLE_SPEED_MPS = 4.2;  // ~15 km/h
-const estimateDuration = (modeKey, distanceM, osrmDuration) => {
-  if (modeKey === "foot")    return { duration: distanceM / WALK_SPEED_MPS,  isEstimate: true };
-  if (modeKey === "cycling") return { duration: distanceM / CYCLE_SPEED_MPS, isEstimate: true };
-  return { duration: osrmDuration, isEstimate: false };
-};
 
 /* ─────────────────────────────────────────────────────────────────────────────
    PROXIMITY THRESHOLDS (metres)
@@ -211,26 +198,8 @@ const isValidPlaceName = (name) => {
   return true;
 };
 
-/* Builds the best human-readable address available from OSM addr:* tags.
-   Never invents anything — returns "" when nothing usable is present, and
-   callers must say "Address information is unavailable" for that case
-   rather than fabricate a value. */
-const buildAddress = (tags = {}) => {
-  const parts = [];
-  const houseNum = tags["addr:housenumber"];
-  const street   = tags["addr:street"];
-  if (houseNum && street) parts.push(`${houseNum} ${street}`);
-  else if (street) parts.push(street);
-  const locality = tags["addr:suburb"] || tags["addr:neighbourhood"];
-  if (locality) parts.push(locality);
-  const city = tags["addr:city"] || tags["addr:town"] || tags["addr:village"];
-  if (city) parts.push(city);
-  const state = tags["addr:state"];
-  if (state) parts.push(state);
-  const postcode = tags["addr:postcode"];
-  if (postcode) parts.push(postcode);
-  return parts.join(", ");
-};
+/* Builds human-readable address from OSM tags or Nominatim address details. */
+const buildAddress = (obj = {}) => buildCleanAddress(obj);
 
 /* Removes near-identical duplicate results — the same real-world place
    often exists as both a node and a way (or two adjacent OSM records) at
@@ -257,6 +226,7 @@ export default function NavigationPage() {
 
   /* ── Core state ── */
   const [destination,   setDestination]   = useState("");
+  const [startLocation, setStartLocation] = useState("");
   const [currentPos,    setCurrentPos]    = useState(null);
   const [transportMode, setTransportMode] = useState("driving");
   const [routeStatus,   setRouteStatus]   = useState("idle");
@@ -377,7 +347,12 @@ export default function NavigationPage() {
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude: lat, longitude: lon } = pos.coords;
+        const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+        if (!isValidCoordinate(lat, lon)) {
+          settleReject(new Error("Invalid GPS coordinates received from browser."));
+          return;
+        }
+        const accInfo = classifyAccuracy(accuracy);
         // Reverse-geocode with a hard 8 s timeout so a slow/rate-limited
         // Nominatim response can never leave the caller stuck indefinitely.
         try {
@@ -395,20 +370,40 @@ export default function NavigationPage() {
           }
           const label = data?.display_name?.split(",").slice(0, 2).join(", ") || "Your location";
           const countryCode = data?.address?.country_code || "";
-          settleResolve({ lat, lon, label, countryCode, ts: Date.now() });
+          settleResolve({
+            lat,
+            lon,
+            accuracy: accInfo.accuracy,
+            accuracyTier: accInfo.tier,
+            accuracyLabel: accInfo.label,
+            accuracyAdvisory: accInfo.advisory,
+            label,
+            countryCode,
+            ts: Date.now()
+          });
         } catch {
           // Nominatim failed or timed out — still resolve with coordinates only
-          settleResolve({ lat, lon, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, countryCode: "", ts: Date.now() });
+          settleResolve({
+            lat,
+            lon,
+            accuracy: accInfo.accuracy,
+            accuracyTier: accInfo.tier,
+            accuracyLabel: accInfo.label,
+            accuracyAdvisory: accInfo.advisory,
+            label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+            countryCode: "",
+            ts: Date.now()
+          });
         }
       },
       (err) => {
-        let msg = "Location unavailable. Please check your location settings and try again.";
-        if (err.code === 1) msg = "I need your location to find nearby places. Please allow location access in your browser.";
-        else if (err.code === 2) msg = "Your location is currently unavailable. Please try again.";
-        else if (err.code === 3) msg = "I couldn't get your location in time. Please check your location settings and try again.";
+        let msg = "Location unavailable. Please check your location settings or enter a manual start location.";
+        if (err.code === 1) msg = "Location access was denied. Please allow location access or enter a starting address.";
+        else if (err.code === 2) msg = "Your GPS location is currently unavailable. Try entering a starting address.";
+        else if (err.code === 3) msg = "GPS timed out. Check your location settings or enter a starting address.";
         settleReject(new Error(msg));
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
     );
   });
 
@@ -471,218 +466,54 @@ export default function NavigationPage() {
   ───────────────────────────────────────────────────────────────────────── */
   const MIN_QUALITY_RESULTS = 3;
 
-  const findNearestByOverpass = async (tag, lat, lon) => {
-    const isRailway = tag === "train_station";
-    const isBus     = tag === "bus_stop";
-    const requireQualityName = tag === "hospital"; // the category this fix targets
-    // Hospitals are tagged inconsistently in OSM — plain amenity=hospital
-    // misses a lot of real facilities tagged amenity=clinic or via the
-    // healthcare=* key instead. Union all three so "nearest hospital" isn't
-    // blind to real, nearby options.
-    const filters   = isRailway
-      ? ['["railway"~"^(station|halt)$"]']
-      : isBus
-      ? ['["highway"="bus_stop"]']
-      : tag === "hospital"
-      ? ['["amenity"~"^(hospital|clinic)$"]', '["healthcare"~"^(hospital|clinic)$"]']
-      : [`["amenity"="${tag}"]`];
-
-    /* Progressive radius: try 3 km first, then 10 km, then 20 km. A transient
-       failure (timeout/429/network) on one radius must NOT abort the whole
-       search — we swallow it and try the next, wider radius. For hospitals we
-       ALSO keep expanding past a radius that returned raw hits if too few of
-       them are trustworthy (validly named) — the nearest REAL, named place
-       should win over a closer but generic/unnamed one. */
-    const radii = isRailway ? [20000] : [3000, 10000, 20000];
-    let bestNamed   = [];  // best valid-named result set found so far
-    let bestAny     = [];  // best raw (any-quality) result set found so far
-    let lastErr     = null;
-
-    for (const radius of radii) {
-      // "out center 100" (raised from 30): Overpass returns matches in its own
-      // internal order, NOT sorted by distance — a low cap can silently drop
-      // the true nearest match before our client-side haversine sort ever
-      // sees it. A higher cap makes that far less likely while staying bounded.
-      const clauses = filters.map(f =>
-        `node${f}(around:${radius},${lat},${lon});way${f}(around:${radius},${lat},${lon});relation${f}(around:${radius},${lat},${lon});`
-      ).join("");
-      // Hospital searches union TWO tag filters (amenity + healthcare) across
-      // node/way/relation — up to 6 sub-clauses per request, noticeably
-      // heavier for the public Overpass mirror than a single-filter query.
-      // 10s was too tight for that and caused legitimate (non-error)
-      // responses to be aborted client-side before they arrived, surfacing
-      // as "The nearby places search timed out." even when Overpass was
-      // simply a bit slow, not actually down. Client timeout kept slightly
-      // above the server-side one so a genuine server-side timeout response
-      // can still be read instead of being cut off at the same instant.
-      const qStr = `[out:json][timeout:15];(${clauses});out center 100;`;
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 18000);
-      let elements = [];
-      try {
-        const res = await fetch(
-          `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(qStr)}`,
-          { signal: ctrl.signal }
-        );
-        if (res.status === 429) throw new Error("RATE_LIMITED");
-        const json = await safeJson(res);
-        elements = json.elements || [];
-        lastErr = null;
-      } catch (err) {
-        // fetch() rejecting before any HTTP response arrives is always a
-        // native TypeError ("Failed to fetch") — the Fetch API deliberately
-        // does not tell JS whether that was DNS failure, connection
-        // refused, being offline, or a CORS block, so the only honest
-        // message is that the service could not be reached at all. Without
-        // this, that raw browser wording was passed straight through to the
-        // user/TTS unchanged (this is the same normalization fetchNearbyPlaces
-        // below already does for its own Overpass calls).
-        lastErr = err.name === "AbortError"
-          ? new Error("The nearby places search timed out.")
-          : err.message === "RATE_LIMITED"
-          ? new Error("The nearby places service is temporarily busy. Please try again in a moment.")
-          : err instanceof TypeError
-          ? new Error("Could not reach the nearby places service. Please check your internet connection and try again.")
-          : err;
-        elements = [];
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (elements.length > 0) {
-        // Real, calculated distance from the FRESH GPS position — never trust
-        // Overpass's own return order.
-        const withDist = elements
-          .map(e => ({
-            name:     e.tags?.name || e.tags?.["name:en"] || tag.replace(/_/g, " "),
-            address:  buildAddress(e.tags),
-            lat:      e.lat ?? e.center?.lat,
-            lon:      e.lon ?? e.center?.lon,
-            amenity:  tag,
-            id:       e.id,
-          }))
-          .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon))
-          .map(p => ({ ...p, distM: haversineM(lat, lon, p.lat, p.lon) }))
-          .filter(p => Number.isFinite(p.distM))
-          .sort((a, b) => a.distM - b.distM);
-
-        // A wider radius is a strict superset of a narrower one for the same
-        // filter, so its results simply replace — never merge with — the
-        // previous, smaller radius's results.
-        bestAny   = dedupePlaces(withDist);
-        bestNamed = requireQualityName ? bestAny.filter(p => isValidPlaceName(p.name)) : bestAny;
-
-        const haveEnough = requireQualityName ? bestNamed.length >= MIN_QUALITY_RESULTS : true;
-        if (haveEnough) break; // enough trustworthy results (or quality filtering doesn't apply) — stop expanding
-      }
-    }
-
-    if (bestNamed.length > 0) return bestNamed; // sorted nearest-first
-
-    // No radius produced enough (or any) results.
-    if (lastErr && bestAny.length === 0) throw lastErr; // a real network/API failure — say so, don't claim "not found"
-    throw requireQualityName
-      ? new Error(`I could not find a nearby named ${tag.replace(/_/g, " ")}. Please try again.`)
-      : new Error(`No ${tag.replace(/_/g, " ")} found nearby. Try a more specific search.`);
+  /* Nominatim search query mapping for fast, reliable POI lookups */
+  const NOMINATIM_TAG_MAP = {
+    hospital: "hospital",
+    pharmacy: "pharmacy",
+    atm: "atm",
+    police: "police station",
+    bus_stop: "bus stop",
+    train_station: "railway station",
+    bank: "bank",
+    restaurant: "restaurant",
+    hotel: "hotel",
+    supermarket: "supermarket",
+    school: "school",
+    clinic: "clinic",
+    fuel: "petrol station",
   };
 
   /* ─────────────────────────────────────────────────────────────────────────
-     FETCH NEARBY PLACES
-     Now uses CURRENT GPS position, not destination.
-     Returns up to 15 results sorted nearest to user first.
+     FETCH & DISCOVER NEARBY PLACES (High-speed, zero API keys)
+     Queries OpenStreetMap via searchNearbyPlaces in routingService.js.
+     Fast, resilient, and sorted nearest first.
   ───────────────────────────────────────────────────────────────────────── */
-  const fetchNearbyPlaces = async (userLat, userLon) => {
+  const fetchNearbyPlaces = async (userLat, userLon, cat = "all") => {
     setNearbyLoading(true);
     setNearbyError("");
     setNearbyPlaces([]);
     try {
-      /* Try 1500 m first, expand to 4000 m if sparse */
-      const runQuery = async (radius) => {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 12000);
-        try {
-          const res = await fetch(
-            `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(
-              `[out:json][timeout:10];
-              (
-                node["amenity"~"^(hospital|pharmacy|atm|police|restaurant|cafe|hotel|bank|supermarket|bus_station|clinic|school|fuel)$"](around:${radius},${userLat},${userLon});
-                way["amenity"~"^(hospital|pharmacy|atm|police|restaurant|cafe|hotel|bank|supermarket|bus_station|clinic|school|fuel)$"](around:${radius},${userLat},${userLon});
-              );
-              out center 100;`
-            )}`,
-            { signal: ctrl.signal }
-          );
-          if (res.status === 429) throw new Error("RATE_LIMITED");
-          return await safeJson(res);
-        } catch (err) {
-          if (err.name === "AbortError") throw new Error("TIMEOUT");
-          throw err;
-        } finally {
-          clearTimeout(timer);
-        }
-      };
-
-      // A failure on the narrow radius must not prevent trying the wider
-      // one — only surface an error if BOTH attempts fail.
-      let elements = [];
-      let lastErr = null;
-      try {
-        const data = await runQuery(1500);
-        elements = data.elements || [];
-      } catch (err) {
-        lastErr = err;
+      const places = await searchNearbyPlaces(cat, userLat, userLon, { radiusKm: 10 });
+      if (nearbyStopRef.current) return [];
+      if (!places || places.length === 0) {
+        const catName = cat === "all" ? "places" : `${categoryWordFor(cat)}s`;
+        const msg = `No ${catName} found near your location.`;
+        setNearbyPlaces([]);
+        setNearbyError(msg);
+        speak(msg);
+        return [];
       }
-
-      /* If fewer than 5 results (including a failed first attempt), expand radius */
-      if (elements.length < 5) {
-        try {
-          const data = await runQuery(4000);
-          if ((data.elements || []).length) { elements = data.elements; lastErr = null; }
-        } catch (err) {
-          if (!elements.length) lastErr = err;
-        }
-      }
-
-      if (!elements.length && lastErr) {
-        const msg = lastErr.message === "RATE_LIMITED"
-          ? "The nearby places service is temporarily busy. Please try again in a moment."
-          : lastErr.message === "TIMEOUT"
-          ? "The nearby places search timed out. Please try again."
-          : "The nearby places service is temporarily unavailable. Please try again.";
-        if (!nearbyStopRef.current) { setNearbyError(msg); speak(msg); }
-        return;
-      }
-
-      /* Map, compute real haversine distance from user, sort, dedupe */
-      const raw = elements
-        .filter(e => e.tags?.name || e.tags?.amenity)
-        .map(e => ({
-          id:      e.id,
-          name:    e.tags?.name || (e.tags?.amenity?.replace(/_/g, " ") || "Place"),
-          amenity: e.tags?.amenity || "",
-          lat:     e.lat ?? e.center?.lat,
-          lon:     e.lon ?? e.center?.lon,
-        }))
-        .filter(p => p.lat && p.lon)
-        .map(p => ({ ...p, distM: haversineM(userLat, userLon, p.lat, p.lon) }))
-        .sort((a, b) => a.distM - b.distM);
-
-      /* Deduplicate: skip entries within 30 m with same name */
-      const seen = new Set();
-      const deduped = [];
-      for (const p of raw) {
-        const key = `${p.name}|${Math.round(p.lat * 1000)}|${Math.round(p.lon * 1000)}`;
-        if (!seen.has(key)) { seen.add(key); deduped.push(p); }
-      }
-
-      if (!nearbyStopRef.current) setNearbyPlaces(withLabels(deduped.slice(0, 15))); // don't resurrect results after Clear
+      const labelled = withLabels(places);
+      if (!nearbyStopRef.current) setNearbyPlaces(labelled);
+      return labelled;
     } catch (err) {
-      const msg = /network|fetch|internet/i.test(err.message || "")
-        ? "The nearby places service is temporarily unavailable. Please try again."
-        : (err.message || "Could not find nearby places. Please try again.");
-      if (!nearbyStopRef.current) { setNearbyError(msg); speak(msg); }
+      if (!nearbyStopRef.current) {
+        const msg = err.message || "Could not find nearby places. Please try again.";
+        setNearbyError(msg);
+        speak(msg);
+      }
+      return [];
     } finally {
-      // Always clear loading — even if an exception escapes
       setNearbyLoading(false);
       if (!nearbyStopRef.current) setNearbySearched(true);
     }
@@ -706,9 +537,8 @@ export default function NavigationPage() {
     { key: "school",        label: "School",          icon: "🏫" },
   ];
 
-  /* Fetch for a specific category using findNearestByOverpass, or general for "all" */
+  /* Fetch for a specific category using searchNearbyPlaces */
   const findNearbyPlaces = async (cat = nearbyCategory) => {
-    // Prevent duplicate concurrent requests
     if (nearbyLoading) return;
 
     nearbyStopRef.current = false;
@@ -717,62 +547,38 @@ export default function NavigationPage() {
     setNearbyPlaces([]);
     setNearbyExpanded(false);
 
-    // Only reuse the cached position if it's very recent — otherwise "nearest"
-    // would be computed relative to where the user WAS, not where they are now.
     let pos = currentPos;
     const posIsFresh = pos?.ts && (Date.now() - pos.ts) < FRESH_POS_MAX_AGE_MS;
 
     try {
       if (!posIsFresh) {
         pos = await getCurrentLocation();
-        if (nearbyStopRef.current) { setNearbyLoading(false); return; } // cleared while awaiting GPS
+        if (nearbyStopRef.current) { setNearbyLoading(false); return; }
         setCurrentPos(pos);
       }
-      if (cat === "all") {
-        // fetchNearbyPlaces manages its own loading state internally,
-        // but we already set loading=true above. fetchNearbyPlaces will
-        // set it false in its own finally. We must NOT set it false again
-        // after this await or we'd double-clear (harmless but confusing).
-        // We delegate full loading management to fetchNearbyPlaces here,
-        // so set our loading flag back to false first to avoid conflict,
-        // then let fetchNearbyPlaces own the flag.
-        setNearbyLoading(false);
-        await fetchNearbyPlaces(pos.lat, pos.lon);
-        // fetchNearbyPlaces sets nearbyLoading false in its own finally
-        return; // early return — loading already cleared by fetchNearbyPlaces
-      } else {
-        // Use findNearestByOverpass which supports train_station/bus_stop properly
-        const places = await findNearestByOverpass(cat, pos.lat, pos.lon);
-        if (!nearbyStopRef.current) {
-          setNearbyPlaces(withLabels(places.slice(0, 15).map((p, i) => ({
-            id: p.id || i,
-            name: p.name,
-            amenity: p.amenity || cat,
-            address: p.address || "",
-            lat: p.lat,
-            lon: p.lon,
-            distM: p.distM,
-          }))));
-        }
+      const catWord = cat === "all" ? "essential places" : `${categoryWordFor(cat)}s`;
+      speak(`Finding ${catWord} near you.`);
+      const places = await searchNearbyPlaces(cat, pos.lat, pos.lon, { radiusKm: 10 });
+      if (nearbyStopRef.current) return;
+      if (!places || places.length === 0) {
+        const msg = `No ${catWord} found near your location.`;
+        setNearbyPlaces([]);
+        setNearbyError(msg);
+        speak(msg);
+        return;
       }
+      const labelled = withLabels(places);
+      setNearbyPlaces(labelled);
+      setNearbyCategory(cat);
+      speakNearbyPlaces(labelled, cat);
     } catch (err) {
-      let msg;
-      if (/denied|allow location|need your location/i.test(err.message)) {
+      let msg = err.message || "Could not find nearby places. Please try again.";
+      if (/denied|allow location|need your location/i.test(msg)) {
         msg = "I need your location to find nearby places. Please allow location access in your browser.";
-      } else if (/timed? out|couldn't get your location/i.test(err.message)) {
-        msg = "I couldn't get your location in time. Please check your location settings and try again.";
-      } else if (err.message === "RATE_LIMITED" || /429|rate.?limit|too many/i.test(err.message)) {
-        msg = "The nearby places service is temporarily busy. Please try again in a moment.";
-      } else if (/network|fetch|internet|unavailable/i.test(err.message)) {
-        msg = "The nearby places service is temporarily unavailable. Please try again.";
-      } else {
-        msg = err.message || "Could not find nearby places. Please try again.";
       }
       setNearbyError(msg);
       speak(msg);
     } finally {
-      // Always clear loading for the non-"all" path (and the error path).
-      // For the "all" path we return early so this does not run.
       setNearbyLoading(false);
       if (!nearbyStopRef.current) setNearbySearched(true);
     }
@@ -812,17 +618,17 @@ export default function NavigationPage() {
      Pass onDone to be notified once the announcement has actually finished
      playing (used to re-open the mic for "navigate to A/B/C" right after). */
   const speakNearbyPlaces = (places, cat, { withPrompt = true, onDone } = {}) => {
-    if (!places.length) { speak("No nearby places found."); onDone?.(); return; }
+    if (!places || !places.length) { speak("No nearby places found."); onDone?.(); return; }
     const top = places.slice(0, 3);
     const catLabel = cat === "all" ? "places" : `${categoryWordFor(cat)}s`;
-    let text = `Nearby ${catLabel} found. `;
+    let text = `Found ${places.length} nearby ${catLabel}. `;
     top.forEach((p, i) => {
       const label = p.label || letterLabel(i);
-      const distLabel = p.distM == null ? "" :
-        p.distM < 1000 ? `${Math.round(p.distM)} metres` : `${(p.distM / 1000).toFixed(1)} kilometres`;
-      text += `${label}, ${p.name}${distLabel ? ", " + distLabel + " away" : ""}. `;
+      const distLabel = p.formattedDist || (p.distM == null ? "" :
+        p.distM < 1000 ? `${Math.round(p.distM)} metres away` : `${(p.distM / 1000).toFixed(1)} kilometres away`);
+      text += `Option ${label}: ${p.name}, ${distLabel}. `;
     });
-    if (withPrompt && top.length > 1) {
+    if (withPrompt && top.length >= 1) {
       text += `Say navigate to ${top.map((p, i) => p.label || letterLabel(i)).join(", ")}.`;
     }
     if (onDone) speakWithCallback(text, onDone);
@@ -830,36 +636,45 @@ export default function NavigationPage() {
   };
 
   /* ─────────────────────────────────────────────────────────────────────────
-     OSRM ROUTE FETCH — uses OSRM's own top-ranked route.
-     Previously this requested alternatives and picked whichever one had the
-     smallest raw DISTANCE. That is backwards from real navigation: OSRM
-     already ranks `routes[0]` as its best recommendation by its routing
-     cost (effectively duration/road-quality, not raw km), same as every
-     standard OSRM client does. Re-sorting by distance could — and did —
-     select a geometrically shorter alternative that actually runs along
-     slower/smaller roads, producing a route that looks shorter and faster
-     but is neither the road Google Maps would pick nor realistic to drive.
+     OSRM & OPENSTREETMAP ROUTE FETCH — strictly zero API keys.
+     Uses mode.endpoints:
+     - For "foot": OpenStreetMap Germany routed-foot (routes through authentic pedestrian
+       alleys, footways, walkways, and subways) with failover to OSRM.
+     - For "cycling": routed-bike with failover to OSRM.
+     - For "driving": OSRM driving with failover to routed-car.
   ───────────────────────────────────────────────────────────────────────── */
-  const fetchOsrmRoute = async (fromLat, fromLon, toLat, toLon, profile) => {
-    const url =
-      `https://router.project-osrm.org/route/v1/${profile}/${fromLon},${fromLat};${toLon},${toLat}` +
-      `?steps=true&overview=full&geometries=geojson&annotations=false` +
-      `&continue_straight=false`;
+  const fetchOsrmRoute = async (fromLat, fromLon, toLat, toLon, modeKeyOrProfile = "driving") => {
+    const mode = MODES.find(m =>
+      m.key === modeKeyOrProfile ||
+      m.osrm === modeKeyOrProfile ||
+      m.label.toLowerCase() === String(modeKeyOrProfile).toLowerCase()
+    ) || MODES[0];
 
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 22000);
-    let data;
-    try {
-      const res = await fetch(url, { signal: ctrl.signal });
-      data = await safeJson(res);
-    } finally {
-      clearTimeout(timer);
+    const endpoints = mode.endpoints || ["https://router.project-osrm.org/route/v1/driving"];
+    let lastError = null;
+
+    for (const base of endpoints) {
+      const url =
+        `${base}/${fromLon},${fromLat};${toLon},${toLat}` +
+        `?steps=true&overview=full&geometries=geojson&annotations=false&continue_straight=false`;
+
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20000);
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        const data = await safeJson(res);
+        if (data.code === "Ok" && data.routes?.length) {
+          return data.routes[0];
+        }
+        lastError = new Error(data.message || "No route found on this mapping server.");
+      } catch (err) {
+        lastError = err;
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
-    if (data.code !== "Ok" || !data.routes?.length)
-      throw new Error("No route found. Try a different transport mode.");
-
-    return data.routes[0];
+    throw lastError || new Error("No route found. Try a different transport mode.");
   };
 
   /* ─────────────────────────────────────────────────────────────────────────
@@ -918,6 +733,8 @@ export default function NavigationPage() {
     setRouteStatus("idle");
     setRoute(null);
     routeRef.current = null;
+    setDestination("");
+    setStartLocation("");
     setNearbyPlaces([]);
     setNearbyLoading(false);
     setNearbyError("");
@@ -934,16 +751,29 @@ export default function NavigationPage() {
   const handleGpsUpdate = useCallback((pos) => {
     if (!navActiveRef.current) return;
 
-    const { latitude: lat, longitude: lon } = pos.coords;
-    setLivePos({ lat, lon });
+    const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+    if (!isValidCoordinate(lat, lon)) return;
+
+    const accInfo = classifyAccuracy(accuracy);
+    setLivePos({
+      lat,
+      lon,
+      accuracy: accInfo.accuracy,
+      accuracyTier: accInfo.tier,
+      accuracyLabel: accInfo.label,
+    });
 
     const steps     = routeRef.current?.steps;
     const dest      = destRef.current;
     if (!steps?.length) return;
 
-    /* ── Check arrival ── */
+    const idx   = currentStepIdxRef.current;
+    const step  = steps[idx];
+    if (!step) return;
+
+    /* ── Check arrival (enforces near-final-step check to avoid premature trigger) ── */
     const arrivalDist = haversineM(lat, lon, dest.lat, dest.lon);
-    if (arrivalDist < ARRIVAL_DIST) {
+    if (checkArrivalEligibility(idx, steps.length, arrivalDist, ARRIVAL_DIST)) {
       navActiveRef.current = false;
       setNavActive(false);
       setNavStatus("arrived");
@@ -954,10 +784,6 @@ export default function NavigationPage() {
       speakNav("You have arrived at your destination.");
       return;
     }
-
-    const idx   = currentStepIdxRef.current;
-    const step  = steps[idx];
-    if (!step) return;
 
     /* ── Distance to current step waypoint ── */
     const distToWp = (step.wpLat != null && step.wpLon != null)
@@ -988,51 +814,47 @@ export default function NavigationPage() {
       return;
     }
 
-    /* ── Off-route detection: user is far from current step's path ── */
-    if (distToWp !== null && distToWp > OFF_ROUTE_DIST * 3 && !rerouting.current) {
+    /* ── Off-route detection with dynamic threshold to prevent sensor jitter loops ── */
+    const dynamicThreshold = computeDynamicOffRouteThreshold(OFF_ROUTE_DIST, accuracy);
+    if (distToWp !== null && dynamicThreshold !== Infinity && distToWp > dynamicThreshold * 3 && !rerouting.current) {
       // Only trigger if we are significantly off ALL nearby steps
       const nearAnyStep = steps.some((st, si) => {
         if (si <= idx || st.wpLat == null) return false;
-        return haversineM(lat, lon, st.wpLat, st.wpLon) < OFF_ROUTE_DIST * 4;
+        return haversineM(lat, lon, st.wpLat, st.wpLon) < dynamicThreshold * 3;
       });
-      if (!nearAnyStep && distToWp > OFF_ROUTE_DIST * 5) {
+      if (!nearAnyStep && distToWp > dynamicThreshold * 4) {
         rerouting.current = true;
         setNavStatus("off_route");
         speakNav("You are off route. Recalculating.");
         // Recalculate from current position
         const modeKey  = transportModeRef.current;
-        const profile  = MODES.find(m => m.key === modeKey)?.osrm;
-        if (profile) {
-          fetchOsrmRoute(lat, lon, dest.lat, dest.lon, profile)
-            .then(newOsrmRoute => {
-              if (!navActiveRef.current) return;
-              const newSteps = buildSteps(newOsrmRoute);
-              const { duration, isEstimate } = estimateDuration(modeKey, newOsrmRoute.distance, newOsrmRoute.duration);
-              const newRoute = {
-                ...routeRef.current,
-                distance: newOsrmRoute.distance,
-                duration,
-                durationIsEstimate: isEstimate,
-                steps: newSteps,
-              };
-              routeRef.current = newRoute;
-              setRoute(newRoute);
-              const newStepStates = newSteps.map(() => "pending");
-              currentStepIdxRef.current = 0;
-              setCurrentStepIdx(0);
-              stepStatesRef.current = newStepStates;
-              setStepStates(newStepStates);
-              rerouting.current = false;
-              setNavStatus("active");
-              if (newSteps[0]) speakNav(`Route updated. ${newSteps[0].instruction}.`);
-            })
-            .catch(() => {
-              rerouting.current = false;
-              setNavStatus("active");
-            });
-        } else {
-          rerouting.current = false;
-        }
+        fetchOsrmRoute(lat, lon, dest.lat, dest.lon, modeKey)
+          .then(newOsrmRoute => {
+            if (!navActiveRef.current) return;
+            const newSteps = buildSteps(newOsrmRoute);
+            const { duration, isEstimate } = estimateDuration(modeKey, newOsrmRoute.distance, newOsrmRoute.duration);
+            const newRoute = {
+              ...routeRef.current,
+              distance: newOsrmRoute.distance,
+              duration,
+              durationIsEstimate: isEstimate,
+              steps: newSteps,
+            };
+            routeRef.current = newRoute;
+            setRoute(newRoute);
+            const newStepStates = newSteps.map(() => "pending");
+            currentStepIdxRef.current = 0;
+            setCurrentStepIdx(0);
+            stepStatesRef.current = newStepStates;
+            setStepStates(newStepStates);
+            rerouting.current = false;
+            setNavStatus("active");
+            if (newSteps[0]) speakNav(`Route updated. ${newSteps[0].instruction}.`);
+          })
+          .catch(() => {
+            rerouting.current = false;
+            setNavStatus("active");
+          });
         return;
       }
     }
@@ -1124,7 +946,7 @@ export default function NavigationPage() {
   const buildAndSpeakRoute = async (pos, destLat, destLon, destLabel, mode, reqToken) => {
     setRouteStatus("routing");
     speak("Calculating route.");
-    const osrmRoute = await fetchOsrmRoute(pos.lat, pos.lon, destLat, destLon, mode.osrm);
+    const osrmRoute = await fetchOsrmRoute(pos.lat, pos.lon, destLat, destLon, mode.key);
     if (stopRef.current) return;
     // A newer route request (e.g. the user re-clicked Get Route, or picked a
     // different transport mode, before this one finished) has since started
@@ -1133,9 +955,7 @@ export default function NavigationPage() {
 
     const steps = buildSteps(osrmRoute);
 
-    /* OSRM's public demo server only really routes "driving" — cycling/foot
-       come back identical to driving. Never present that duration as real
-       bike/walk time; derive an honest, clearly-flagged estimate instead. */
+    /* OSRM & routed-foot duration estimation */
     const { duration, isEstimate } = estimateDuration(mode.key, osrmRoute.distance, osrmRoute.duration);
 
     const routeData = {
@@ -1176,15 +996,14 @@ export default function NavigationPage() {
     const minutes = Math.max(1, Math.round(duration / 60));
     const timePhrase = isEstimate ? `approximately ${minutes} minutes` : `${minutes} minutes`;
     const eta = fmtETA(duration);
-    // Same distance/duration values as the UI stats card below — never a
-    // second, different-sounding number spoken here.
     const trafficNote = routeData.noLiveTraffic
       ? " This does not include live traffic — actual time may be longer."
       : "";
+    const startNotice = pos.isManual ? "Using manual start location. " : "";
     speak(
-      `${mode.label} route to ${destLabel}. Distance is ${distKm} kilometres. ` +
+      `${startNotice}${mode.label} route to ${destLabel}. Distance is ${distKm} kilometres. ` +
       `Estimated travel time is ${timePhrase}.${trafficNote} Arriving at approximately ${eta}. ` +
-      `Press Start Navigation to begin GPS guidance.`
+      (pos.isManual ? "Turn-by-turn route steps are displayed below." : "Press Start Navigation to begin GPS guidance.")
     );
   };
 
@@ -1221,44 +1040,30 @@ export default function NavigationPage() {
       const tag = amenityFromQuery(dest);
       if (!tag) {
         setRouteStatus("error");
-        const msg = "Could not identify place type. Try 'hospital near me'.";
+        const msg = "Could not identify place type. Try 'hospital near me' or 'pharmacy near me'.";
         setErrorMsg(msg);
         speak(msg);
         return;
       }
-      // The app-wide "Hey Zara" wake-word listener (DashboardLayout) runs
-      // continuously in the background on every page and was never paused
-      // here. Because it keeps listening through the whole GPS+search+speech
-      // sequence below, it can pick up the TTS output itself (mic echo) and
-      // misfire — which calls speechSynthesis.cancel() and cuts the A/B/C
-      // announcement off after only a word or two. Every other voice flow in
-      // this app (see VoiceAssistantPage) pauses it first; this flow simply
-      // never did. Paused for the whole search+announce window, then always
-      // resumed — including on error/timeout — so the global assistant is
-      // never left permanently disabled.
       if (window._vgPauseWake) { try { await window._vgPauseWake(); } catch {} }
-      let announced = false; // true once the list was actually spoken — listenForFollowUp then owns resuming wake
+      let announced = false;
       try {
         await withTimeout((async () => {
           setRouteStatus("locating");
           speak(`Finding nearest ${tag.replace(/_/g, " ")} near you.`);
-          const pos = await getCurrentLocation(); // always a fresh fix, never reused
+          const pos = await getCurrentLocation();
           setCurrentPos(pos);
           if (stopRef.current) return;
 
-          setRouteStatus("routing"); // keep the button showing progress while Overpass runs
-          const places = await findNearestByOverpass(tag, pos.lat, pos.lon);
+          setRouteStatus("routing");
+          const places = await searchNearbyPlaces(tag, pos.lat, pos.lon, { radiusKm: 10 });
           if (stopRef.current) return;
 
-          const labelled = withLabels(places.slice(0, 15).map((p, i) => ({
-            id: p.id || i,
-            name: p.name,
-            amenity: p.amenity || tag,
-            address: p.address || "",
-            lat: p.lat,
-            lon: p.lon,
-            distM: p.distM,
-          })));
+          if (!places || places.length === 0) {
+            throw new Error(`I could not find any ${tag.replace(/_/g, " ")} near your location.`);
+          }
+
+          const labelled = withLabels(places);
           setNearbyPlaces(labelled);
           setNearbyCategory(tag);
           setNearbyExpanded(false);
@@ -1266,30 +1071,16 @@ export default function NavigationPage() {
           setNearbyLoading(false);
           setNearbySearched(true);
 
-          setRouteStatus("idle"); // no turn-by-turn route yet, so nothing should read as "loading"
+          setRouteStatus("idle");
           announced = true;
-          // Speak the freshly computed list directly (not the nearbyPlaces
-          // state) — guarantees this can never announce stale results. Once
-          // it finishes, re-open the mic for "navigate to A/B/C" without
-          // requiring the mic button or wake word again.
           speakNearbyPlaces(labelled, tag, { onDone: listenForFollowUp });
-          // 75s = GPS watchdog (~15s) + up to 3 sequential Overpass radius
-          // attempts at 18s each (~54s) + a few seconds' margin. Matches the
-          // budget findNearestByOverpass actually needs now that its
-          // per-request timeout was raised — otherwise this outer watchdog
-          // could cut the retry sequence off before it gets a fair chance to
-          // succeed on a wider radius.
-        })(), 75000, "This is taking too long. Please check your internet connection and try again.");
+        })(), 15000, "Finding nearby places took too long. Please try again.");
       } catch (err) {
         setRouteStatus("error");
         const msg = err.message || "Could not find nearby places. Check internet and try again.";
         setErrorMsg(msg);
         speak(msg);
       } finally {
-        // Only resume here if the list was never actually announced — once it
-        // is, listenForFollowUp's own completion is what resumes wake, so a
-        // successful run must NOT resume it early (that would let the
-        // wake-word mic race the still-playing announcement again).
         if (!announced && window._vgResumeWake) { try { window._vgResumeWake(); } catch {} }
       }
       return;
@@ -1300,11 +1091,32 @@ export default function NavigationPage() {
       // routeStatus reaches "error" (never left on "locating"/"geocoding"/
       // "routing") within a bounded time.
       await withTimeout((async () => {
-        /* Step 1 — Get current location */
-        setRouteStatus("locating");
-        speak("Getting your current location.");
-        const pos = await getCurrentLocation();
-        setCurrentPos(pos);
+        /* Step 1 — Get start position (manual start location or live GPS) */
+        let pos = null;
+        if (startLocation.trim()) {
+          setRouteStatus("geocoding");
+          speak(`Finding starting location ${startLocation}.`);
+          const startCoords = await geocode(startLocation.trim());
+          pos = {
+            lat: startCoords.lat,
+            lon: startCoords.lon,
+            label: startCoords.label,
+            isManual: true,
+            accuracy: null,
+            accuracyTier: "manual",
+            countryCode: "",
+            ts: Date.now(),
+          };
+          setCurrentPos(pos);
+        } else {
+          setRouteStatus("locating");
+          speak("Getting your current location.");
+          pos = await getCurrentLocation();
+          setCurrentPos(pos);
+          if (pos.accuracyAdvisory) {
+            speak(pos.accuracyAdvisory);
+          }
+        }
         if (stopRef.current) return;
 
         /* Step 2 — Resolve destination */
@@ -1334,7 +1146,9 @@ export default function NavigationPage() {
 
     } catch (err) {
       setRouteStatus("error");
-      const msg = err.message || "Could not get route. Check internet and try again.";
+      const msg = /gateway.?timeout|504/i.test(err.message || "")
+        ? "The mapping service is temporarily busy. Please try again in a moment."
+        : (err.message || "Could not get route. Check internet and try again.");
       setErrorMsg(msg);
       speak(msg);
     }
@@ -1362,13 +1176,34 @@ export default function NavigationPage() {
 
     try {
       await withTimeout((async () => {
-        setRouteStatus("locating");
-        speak("Getting your current location.");
-        const pos = await getCurrentLocation();
-        setCurrentPos(pos);
+        let pos = null;
+        if (startLocation.trim()) {
+          setRouteStatus("geocoding");
+          speak(`Finding starting location ${startLocation}.`);
+          const startCoords = await geocode(startLocation.trim());
+          pos = {
+            lat: startCoords.lat,
+            lon: startCoords.lon,
+            label: startCoords.label,
+            isManual: true,
+            accuracy: null,
+            accuracyTier: "manual",
+            countryCode: "",
+            ts: Date.now(),
+          };
+          setCurrentPos(pos);
+        } else {
+          setRouteStatus("locating");
+          speak("Getting your current location.");
+          pos = await getCurrentLocation();
+          setCurrentPos(pos);
+          if (pos.accuracyAdvisory) {
+            speak(pos.accuracyAdvisory);
+          }
+        }
         if (stopRef.current) return;
         await buildAndSpeakRoute(pos, destLat, destLon, destLabel, mode, reqToken);
-      })(), 45000, "This is taking too long. Please check your internet connection and try again.");
+      })(), 25000, "This is taking too long. Please check your internet connection and try again.");
     } catch (err) {
       setRouteStatus("error");
       const msg = err.message || "Could not get route. Check internet and try again.";
@@ -1409,20 +1244,15 @@ export default function NavigationPage() {
         if (stopRef.current) return;
 
         setRouteStatus("routing");
-        const places = await findNearestByOverpass(tag, pos.lat, pos.lon);
+        const places = await searchNearbyPlaces(tag, pos.lat, pos.lon, { radiusKm: 10 });
         if (stopRef.current) return;
+        if (!places || places.length === 0) {
+          throw new Error(`No ${tag.replace(/_/g, " ")} found near you.`);
+        }
         const nearest = places[0];
-        setDestination(nearest.name); // keep the Maps embed/links in sync with the actual target
+        setDestination(nearest.name);
 
-        const labelled = withLabels(places.slice(0, 15).map((p, i) => ({
-          id: p.id || i,
-          name: p.name,
-          amenity: p.amenity || tag,
-          address: p.address || "",
-          lat: p.lat,
-          lon: p.lon,
-          distM: p.distM,
-        })));
+        const labelled = withLabels(places);
         setNearbyPlaces(labelled);
         setNearbyCategory(tag);
         setNearbyExpanded(false);
@@ -1431,9 +1261,7 @@ export default function NavigationPage() {
         setNearbySearched(true);
 
         await buildAndSpeakRoute(pos, nearest.lat, nearest.lon, nearest.name, mode, reqToken);
-        // Same 75s budget as the plain "X near me" search — see startRoute —
-        // since this also runs findNearestByOverpass's up-to-3-radius retry.
-      })(), 75000, "This is taking too long. Please check your internet connection and try again.");
+      })(), 20000, "Finding or routing to the nearest place took too long. Please try again.");
     } catch (err) {
       setRouteStatus("error");
       const msg = err.message || "Could not find or route to the nearest place. Check internet and try again.";
@@ -1690,7 +1518,38 @@ export default function NavigationPage() {
 
         {/* ── Input card ── */}
         <div className="card" style={{ marginBottom: "20px" }}>
-          <h3 style={{ ...s.sec, color: C.text }}>Destination</h3>
+          {/* Starting Location (Optional / GPS fallback) */}
+          <div style={{ marginBottom: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+              <label style={{ ...s.sec, color: C.text, fontSize: "14px", margin: 0 }}>
+                📍 Start Location
+              </label>
+              {startLocation ? (
+                <button
+                  type="button"
+                  onClick={() => { setStartLocation(""); speak("Using live GPS location."); }}
+                  style={{ background: "none", border: "none", color: "#a78bfa", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}
+                >
+                  🔄 Reset to My GPS
+                </button>
+              ) : (
+                <span style={{ fontSize: "11px", color: C.sub }}>
+                  {currentPos?.accuracy ? `GPS ±${currentPos.accuracy}m (${currentPos.accuracyTier || "normal"})` : "Defaults to Live GPS"}
+                </span>
+              )}
+            </div>
+            <input
+              style={{ ...s.input, background: C.input, border: `1.5px solid ${C.inBd}`, color: C.text, width: "100%" }}
+              type="text"
+              placeholder="Leave empty for live GPS, or type starting address"
+              value={startLocation}
+              onChange={e => setStartLocation(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && startRoute()}
+              aria-label="Starting Location"
+            />
+          </div>
+
+          <h3 style={{ ...s.sec, color: C.text, fontSize: "14px" }}>🎯 Destination</h3>
           <div style={s.inputRow}>
             <input
               style={{ ...s.input, background: C.input, border: `1.5px solid ${C.inBd}`, color: C.text, flex: 1 }}
@@ -1848,15 +1707,7 @@ export default function NavigationPage() {
                 key={cat.key}
                 onClick={() => {
                   setNearbyCategory(cat.key);
-                  if (currentPos || nearbyPlaces.length > 0) {
-                    // If we already have a position, re-fetch for this category
-                    // (for "all" we filter in-place from existing results if available,
-                    //  for a specific category we need a targeted search)
-                    if (cat.key !== "all") {
-                      findNearbyPlaces(cat.key);
-                    }
-                    // "all" just resets the filter on existing data; no extra fetch
-                  }
+                  findNearbyPlaces(cat.key);
                 }}
                 style={{
                   display: "flex", alignItems: "center", gap: "5px",
@@ -2045,7 +1896,7 @@ export default function NavigationPage() {
               </span>
               {livePos && (
                 <span style={{ fontSize: "11px", color: C.sub }}>
-                  📡 GPS active
+                  📡 {livePos.isManual ? "📍 Manual Origin" : `GPS ${livePos.accuracy ? `±${livePos.accuracy}m (${livePos.accuracyTier || "normal"})` : "active"}`}
                 </span>
               )}
             </div>
