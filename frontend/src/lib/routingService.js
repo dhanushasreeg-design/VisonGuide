@@ -361,12 +361,15 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
     const photonNested = await Promise.all(photonPromises);
     rawPlaces.push(...photonNested.flat());
 
-    // If Photon had fewer than 5 results, supplement with Nominatim essentials
-    if (rawPlaces.length < 5) {
-      try {
-        const nomItems = await queryNominatimSingle("hospital", 5);
-        rawPlaces.push(...nomItems.map((p) => ({ ...p, _amenity: "hospital" })));
-      } catch {}
+    // If Photon had fewer than 10 results (e.g. server latency or suburban area), supplement with Nominatim essentials in parallel
+    if (rawPlaces.length < 10) {
+      const nomPromises = essentials.slice(0, 4).map((item) =>
+        queryNominatimSingle(item.q, 5).then((items) =>
+          items.map((p) => ({ ...p, _amenity: item.tag }))
+        )
+      );
+      const nomNested = await Promise.all(nomPromises);
+      rawPlaces.push(...nomNested.flat());
     }
   } else {
     const config = NEARBY_TAG_MAP[category] || {
@@ -380,12 +383,16 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
     const photonNested = await Promise.all(photonPromises);
     rawPlaces.push(...photonNested.flat().map((p) => ({ ...p, _amenity: category })));
 
-    // 2. Supplement with 1 Nominatim search if needed
+    // 2. Supplement with Nominatim if fewer than 5 results
     if (rawPlaces.length < 5) {
-      try {
-        const nomItems = await queryNominatimSingle(config.primary, 8);
-        rawPlaces.push(...nomItems.map((p) => ({ ...p, _amenity: category })));
-      } catch {}
+      const nomTerms = [config.primary, ...(config.alternates || []).slice(0, 2)];
+      const nomPromises = nomTerms.map((term) =>
+        queryNominatimSingle(term, 8).then((items) =>
+          items.map((p) => ({ ...p, _amenity: category }))
+        )
+      );
+      const nomNested = await Promise.all(nomPromises);
+      rawPlaces.push(...nomNested.flat());
     }
   }
 
