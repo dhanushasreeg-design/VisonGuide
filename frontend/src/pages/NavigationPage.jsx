@@ -143,6 +143,41 @@ const amenityFromQuery = (q) => {
   return null;
 };
 
+const AMENITY_ICON = {
+  hospital: "🏥",
+  pharmacy: "💊",
+  atm: "🏧",
+  police: "👮",
+  restaurant: "🍽️",
+  cafe: "☕",
+  hotel: "🏨",
+  bank: "🏦",
+  supermarket: "🛒",
+  bus_station: "🚌",
+  clinic: "🏥",
+  school: "🏫",
+  train_station: "🚉",
+  bus_stop: "🚌",
+  fuel: "⛽",
+  aerodrome: "✈️",
+  college: "🎓",
+};
+
+const NEARBY_CATEGORIES = [
+  { key: "all",           label: "All Places",       icon: "📍" },
+  { key: "hospital",      label: "Hospitals",        icon: "🏥" },
+  { key: "pharmacy",      label: "Pharmacies",       icon: "💊" },
+  { key: "atm",           label: "ATMs",             icon: "🏧" },
+  { key: "police",        label: "Police Stations",  icon: "👮" },
+  { key: "bus_stop",      label: "Bus Stops",        icon: "🚌" },
+  { key: "train_station", label: "Railway Stations", icon: "🚉" },
+  { key: "bank",          label: "Banks",            icon: "🏦" },
+  { key: "restaurant",    label: "Restaurants",      icon: "🍽️" },
+  { key: "supermarket",   label: "Supermarkets",     icon: "🛒" },
+  { key: "fuel",          label: "Petrol Stations",  icon: "⛽" },
+  { key: "school",        label: "Schools",          icon: "🏫" },
+];
+
 /* Wall-clock deadline helper */
 const withTimeout = (promise, ms, message) =>
   new Promise((resolve, reject) => {
@@ -165,13 +200,22 @@ export default function NavigationPage() {
   const [destination, setDestination] = useState("");
   const [startLocation, setStartLocation] = useState("");
   const [currentPos, setCurrentPos] = useState(null);
-  const [transportMode, setTransportMode] = useState("foot"); // Defaults to Walk for visually impaired pedestrians
+  const [transportMode, setTransportMode] = useState("foot"); // Defaults to Walk for visually impaired users
   const [routeStatus, setRouteStatus] = useState("idle");
   const [route, setRoute] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [savedLocations, setSavedLocations] = useState([]);
   const [voiceListening, setVoiceListening] = useState(false);
   const [requests, setRequests] = useState([]);
+
+  /* ── Nearby Suggesting Places State ── */
+  const [nearbyPlaces, setNearbyPlaces] = useState([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyCategory, setNearbyCategory] = useState("all");
+  const [nearbyExpanded, setNearbyExpanded] = useState(false); // Controls Show all vs top 5
+  const [nearbyError, setNearbyError] = useState("");
+  const [nearbySearched, setNearbySearched] = useState(false);
+  const nearbyStopRef = useRef(false);
 
   /* ── Live GPS Navigation State ── */
   const [navActive, setNavActive] = useState(false);
@@ -210,10 +254,22 @@ export default function NavigationPage() {
     inBd:   isDark ? "#374151" : "rgba(0,0,0,0.15)",
   };
 
+  /* Voice-friendly category label */
+  const categoryWordFor = (amenity) =>
+    (NEARBY_CATEGORIES.find((c) => c.key === amenity)?.label || (amenity || "place").replace(/_/g, " ")).toLowerCase();
+
   /* ── Initial Data & URL parameter auto-routing ── */
   useEffect(() => {
     API.get("/locations").then((r) => setSavedLocations(r.data)).catch(() => {});
     API.get("/navigation").then((r) => setRequests(r.data)).catch(() => {});
+
+    // Automatically acquire initial GPS location and fetch nearby options on load
+    getCurrentLocation()
+      .then((pos) => {
+        setCurrentPos(pos);
+        fetchNearbyPlaces(pos.lat, pos.lon, "all");
+      })
+      .catch(() => {});
 
     const d = searchParams.get("dest");
     if (d) {
@@ -376,6 +432,102 @@ export default function NavigationPage() {
   };
 
   /* ─────────────────────────────────────────────────────────────────────────
+     NEARBY PLACES DISCOVERY (Zero API keys, sorted nearest first)
+  ───────────────────────────────────────────────────────────────────────── */
+  const fetchNearbyPlaces = async (userLat, userLon, cat = "all") => {
+    setNearbyLoading(true);
+    setNearbyError("");
+    setNearbyPlaces([]);
+    try {
+      const places = await searchNearbyPlaces(cat, userLat, userLon, { radiusKm: 10 });
+      if (nearbyStopRef.current) return [];
+      if (!places || places.length === 0) {
+        const catWord = cat === "all" ? "places" : `${categoryWordFor(cat)}`;
+        const msg = `No ${catWord} found near your location.`;
+        setNearbyPlaces([]);
+        setNearbyError(msg);
+        return [];
+      }
+      if (!nearbyStopRef.current) setNearbyPlaces(places);
+      return places;
+    } catch (err) {
+      if (!nearbyStopRef.current) {
+        const msg = err.message || "Could not find nearby places. Please try again.";
+        setNearbyError(msg);
+      }
+      return [];
+    } finally {
+      setNearbyLoading(false);
+      if (!nearbyStopRef.current) setNearbySearched(true);
+    }
+  };
+
+  const findNearbyPlaces = async (cat = nearbyCategory) => {
+    if (nearbyLoading) return;
+
+    nearbyStopRef.current = false;
+    setNearbyError("");
+    setNearbyLoading(true);
+    setNearbyPlaces([]);
+    setNearbyExpanded(false);
+
+    let pos = currentPos;
+    const posIsFresh = pos?.ts && (Date.now() - pos.ts) < 30000;
+
+    try {
+      if (!posIsFresh) {
+        pos = await getCurrentLocation();
+        if (nearbyStopRef.current) { setNearbyLoading(false); return; }
+        setCurrentPos(pos);
+      }
+      const catWord = cat === "all" ? "places" : `${categoryWordFor(cat)}`;
+      speak(`Finding ${catWord} near you.`);
+      const places = await searchNearbyPlaces(cat, pos.lat, pos.lon, { radiusKm: 10 });
+      if (nearbyStopRef.current) return;
+      if (!places || places.length === 0) {
+        const msg = `No ${catWord} found near your location.`;
+        setNearbyPlaces([]);
+        setNearbyError(msg);
+        speak(msg);
+        return;
+      }
+      setNearbyPlaces(places);
+      setNearbyCategory(cat);
+      speak(`Found ${places.length} nearby ${catWord}. Select any place to navigate.`);
+    } catch (err) {
+      let msg = err.message || "Could not find nearby places. Please try again.";
+      if (/denied|allow location|need your location/i.test(msg)) {
+        msg = "Location permission is required to find nearby places. Please allow location access in your browser.";
+      }
+      setNearbyError(msg);
+      speak(msg);
+    } finally {
+      setNearbyLoading(false);
+      if (!nearbyStopRef.current) setNearbySearched(true);
+    }
+  };
+
+  /* Audio reading of nearby places without asking for Option A or B */
+  const readNearbyPlacesAloud = () => {
+    const filtered = nearbyCategory === "all"
+      ? nearbyPlaces
+      : nearbyPlaces.filter((p) => p.amenity === nearbyCategory);
+    if (!filtered.length) {
+      speak("No nearby places to read.");
+      return;
+    }
+    const top = filtered.slice(0, 5);
+    const catLabel = nearbyCategory === "all" ? "places" : `${categoryWordFor(nearbyCategory)}`;
+    let text = `Found ${filtered.length} nearby ${catLabel}. `;
+    top.forEach((p, i) => {
+      const distText = p.formattedDist || (p.distM != null ? `${fmtDist(p.distM)} away` : "");
+      text += `${i + 1}: ${p.name}, ${distText}. `;
+    });
+    text += `Tap any card or click navigate to start routing.`;
+    speak(text);
+  };
+
+  /* ─────────────────────────────────────────────────────────────────────────
      OSRM & OPENSTREETMAP ROUTE FETCH — strictly zero API keys.
      Supports Walk (routed-foot), Bike (routed-bike), and Car (OSRM driving).
   ───────────────────────────────────────────────────────────────────────── */
@@ -451,6 +603,7 @@ export default function NavigationPage() {
   const clearNavigation = useCallback(() => {
     stopNavigation();
     stopRef.current = true;
+    nearbyStopRef.current = true;
     setRouteStatus("idle");
     setRoute(null);
     routeRef.current = null;
@@ -461,7 +614,7 @@ export default function NavigationPage() {
     speak("Navigation cleared.");
   }, [stopNavigation, speak]);
 
-  /* Dedicated Repeat Step button & voice command for visually impaired users */
+  /* Dedicated Repeat Step button for blind users */
   const repeatCurrentStep = useCallback(() => {
     if (!routeRef.current?.steps?.length) {
       if (destination.trim()) {
@@ -561,7 +714,7 @@ export default function NavigationPage() {
       return;
     }
 
-    /* 4. Off-route detection with dynamic threshold to prevent GPS sensor jitter loops */
+    /* 4. Off-route detection with dynamic threshold to prevent sensor jitter loops */
     const dynamicThreshold = computeDynamicOffRouteThreshold(thresholds.offRouteDist, accuracy);
     if (distToWp !== null && dynamicThreshold !== Infinity && distToWp > dynamicThreshold * 2.5 && !rerouting.current) {
       const nearAnyUpcomingStep = steps.some((st, si) => {
@@ -726,8 +879,40 @@ export default function NavigationPage() {
     speak(
       `${startNotice}${mode.label} route to ${destLabel}. Distance is ${distKm} kilometres. ` +
       `Estimated time is ${timePhrase}.${trafficNote} Arriving at approximately ${eta}. ` +
-      `Say Start Navigation or press the green button to begin.`
+      `Press Start Navigation or say Start to begin GPS guidance.`
     );
+  };
+
+  /* Route directly to a selected card's coordinates */
+  const startRouteToCoords = async (destLat, destLon, destLabel) => {
+    stopNavigation();
+    stopRef.current = false;
+    nearbyStopRef.current = false;
+    const reqToken = ++routeReqRef.current;
+    setRoute(null);
+    setErrorMsg("");
+    setDestination(destLabel);
+
+    const mode = MODES.find((m) => m.key === transportModeRef.current) || MODES[0];
+
+    try {
+      await withTimeout((async () => {
+        let pos = currentPos;
+        if (!pos || !pos.lat) {
+          setRouteStatus("locating");
+          speak("Getting your location.");
+          pos = await getCurrentLocation();
+          setCurrentPos(pos);
+        }
+        if (stopRef.current) return;
+        await buildAndSpeakRoute(pos, destLat, destLon, destLabel, mode, reqToken);
+      })(), 25000, "Calculating route took too long. Please check your internet connection.");
+    } catch (err) {
+      setRouteStatus("error");
+      const msg = err.message || "Could not calculate route. Check connection.";
+      setErrorMsg(msg);
+      speak(msg);
+    }
   };
 
   /* ─────────────────────────────────────────────────────────────────────────
@@ -779,7 +964,7 @@ export default function NavigationPage() {
         }
         if (stopRef.current) return;
 
-        // Step 2: Check for "near me" or category query (direct closest navigation, NO Option A/B)
+        // Step 2: Check for "near me" or category query
         if (NEAR_ME_RE.test(dest)) {
           const tag = amenityFromQuery(dest) || "hospital";
           setRouteStatus("routing");
@@ -790,6 +975,11 @@ export default function NavigationPage() {
           if (!places || places.length === 0) {
             throw new Error(`No ${tag.replace(/_/g, " ")} found near your location.`);
           }
+
+          // Populate the nearby cards with all matching options
+          setNearbyPlaces(places);
+          setNearbyCategory(tag);
+          setNearbySearched(true);
 
           const nearest = places[0];
           setDestination(nearest.name);
@@ -814,6 +1004,9 @@ export default function NavigationPage() {
 
         // Step 4: Route calculation
         await buildAndSpeakRoute(pos, destCoords.lat, destCoords.lon, destCoords.label, mode, reqToken);
+
+        // Fetch nearby places around user in background so options remain available
+        fetchNearbyPlaces(pos.lat, pos.lon, "all");
       })(), 35000, "Calculating route took too long. Please check your internet connection.");
     } catch (err) {
       setRouteStatus("error");
@@ -835,7 +1028,6 @@ export default function NavigationPage() {
     const modeObj = MODES.find((m) => m.key === newModeKey) || MODES[0];
     speak(`Transport mode set to ${modeObj.label}.`);
 
-    // If destination is already loaded, immediately recalculate for the new transport mode!
     if (destRef.current?.lat && destRef.current?.lon) {
       const pos = livePos || currentPos || {
         lat: routeRef.current?._fromLat,
@@ -871,25 +1063,8 @@ export default function NavigationPage() {
   };
 
   /* ─────────────────────────────────────────────────────────────────────────
-     VOICE RECOGNITION & VOICE COMMAND HANDLER
+     VOICE RECOGNITION & VOICE COMMAND HANDLER (Direct, NO Option A/B loop)
   ───────────────────────────────────────────────────────────────────────── */
-  const playListenChime = () => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.25);
-    } catch {}
-  };
-
   const handleVoiceCommand = (rawTranscript) => {
     const t = rawTranscript.trim().toLowerCase();
 
@@ -967,7 +1142,6 @@ export default function NavigationPage() {
     }
 
     window.speechSynthesis.cancel();
-    playListenChime();
 
     try {
       const rec = new SR();
@@ -1436,7 +1610,7 @@ export default function NavigationPage() {
               ↗ Google Maps
             </button>
 
-            {(routeStatus !== "idle" || route) && (
+            {(routeStatus !== "idle" || route || nearbyPlaces.length > 0) && (
               <button
                 onClick={clearNavigation}
                 style={{
@@ -1449,6 +1623,274 @@ export default function NavigationPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* ───────────────────────────────────────────────────────────────────
+           NEARBY SUGGESTING PLACES (Shows all nearby options with Show All)
+        ─────────────────────────────────────────────────────────────────── */}
+        <div className="card" style={{ marginBottom: "24px", padding: "22px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <h3 style={{ ...s.sec, color: C.text, marginBottom: 0, fontSize: "16px" }}>
+                📍 Nearby Places & Suggestions
+              </h3>
+              {nearbyLoading && (
+                <span style={{ fontSize: "12px", color: "#a78bfa", fontWeight: 600 }}>📡 Finding places near you…</span>
+              )}
+              {!nearbyLoading && nearbyPlaces.length > 0 && (
+                <span style={{ fontSize: "12px", color: C.sub }}>
+                  ({nearbyPlaces.length} found · sorted nearest first)
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {nearbyPlaces.length > 0 && (
+                <button
+                  type="button"
+                  onClick={readNearbyPlacesAloud}
+                  style={{ ...s.speakBtn, padding: "8px 14px", fontSize: "13px" }}
+                  aria-label="Read nearby places aloud"
+                >
+                  🔊 Read Places
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setNearbyCategory("all"); findNearbyPlaces("all"); }}
+                disabled={nearbyLoading}
+                style={{
+                  background: "#a78bfa",
+                  color: "#000000",
+                  border: "none",
+                  padding: "8px 16px",
+                  borderRadius: "10px",
+                  fontWeight: 800,
+                  fontSize: "13px",
+                  cursor: nearbyLoading ? "not-allowed" : "pointer",
+                  fontFamily: "Inter,Arial,sans-serif",
+                  opacity: nearbyLoading ? 0.6 : 1,
+                }}
+                aria-label="Find places near me"
+              >
+                {nearbyLoading ? "⏳ Searching…" : "📍 Find Places Near Me"}
+              </button>
+            </div>
+          </div>
+
+          {/* Category Filter Strip */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+            {NEARBY_CATEGORIES.map((cat) => {
+              const isSelected = nearbyCategory === cat.key;
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => {
+                    setNearbyCategory(cat.key);
+                    findNearbyPlaces(cat.key);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "7px 14px",
+                    borderRadius: "20px",
+                    fontSize: "12px",
+                    fontWeight: isSelected ? 800 : 500,
+                    fontFamily: "Inter,Arial,sans-serif",
+                    cursor: "pointer",
+                    border: `1.5px solid ${isSelected ? "#a78bfa" : C.inBd}`,
+                    background: isSelected ? "rgba(167,139,250,0.18)" : C.input,
+                    color: isSelected ? "#a78bfa" : C.text,
+                    transition: "all 0.15s ease",
+                  }}
+                  aria-label={`Filter nearby places by ${cat.label}`}
+                  aria-pressed={isSelected}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Error state */}
+          {nearbyError && (
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#f87171", fontSize: "13px", marginBottom: "14px" }}>
+              <span>{nearbyError}</span>
+              <button
+                type="button"
+                onClick={() => { setNearbyError(""); findNearbyPlaces(nearbyCategory); }}
+                disabled={nearbyLoading}
+                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", padding: "6px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: 700, fontFamily: "inherit" }}
+                aria-label="Try finding nearby places again"
+              >
+                🔄 Try Again
+              </button>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {nearbyLoading && (
+            <div style={{ color: C.sub, fontSize: "13px", padding: "12px 0" }}>
+              📡 Finding nearby places and services…
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!nearbyLoading && !nearbyError && nearbyPlaces.length === 0 && nearbySearched && (
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 0" }}>
+              <span style={{ color: C.sub, fontSize: "13px" }}>No nearby places found in this area.</span>
+              <button
+                type="button"
+                onClick={() => findNearbyPlaces(nearbyCategory)}
+                style={{ background: C.input, border: `1px solid ${C.inBd}`, color: C.sub, padding: "6px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}
+                aria-label="Try searching again"
+              >
+                🔄 Try Again
+              </button>
+            </div>
+          )}
+
+          {/* Initial prompt */}
+          {!nearbyLoading && !nearbyError && nearbyPlaces.length === 0 && !nearbySearched && (
+            <div style={{ color: C.sub, fontSize: "13px", padding: "8px 0" }}>
+              Press <strong>Find Places Near Me</strong> or tap any category above to view nearby hospitals, pharmacies, ATMs, bus stops, and more.
+            </div>
+          )}
+
+          {/* Grid of Nearby Place Cards with Show All */}
+          {(() => {
+            const filtered = nearbyCategory === "all"
+              ? nearbyPlaces
+              : nearbyPlaces.filter((p) => p.amenity === nearbyCategory);
+            const shown = nearbyExpanded ? filtered : filtered.slice(0, 5);
+            if (!shown.length) return null;
+
+            return (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "12px" }}>
+                  {shown.map((p, idx) => {
+                    const icon = AMENITY_ICON[p.amenity] || "📍";
+                    const distM = p.distM ?? (currentPos ? haversineM(currentPos.lat, currentPos.lon, p.lat, p.lon) : null);
+                    const distLabel = distM == null ? null
+                      : distM < 1000 ? `${Math.round(distM)} m`
+                      : `${(distM / 1000).toFixed(1)} km`;
+
+                    return (
+                      <div
+                        key={p.id || idx}
+                        style={{
+                          background: isDark ? "rgba(255,255,255,0.03)" : "#ffffff",
+                          border: `2px solid ${C.border}`,
+                          borderRadius: "14px",
+                          padding: "16px",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          boxShadow: isDark ? "none" : "0 2px 8px rgba(0,0,0,0.04)",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                        }}
+                        onClick={() => {
+                          speak(`Navigating to ${p.name}.`);
+                          startRouteToCoords(p.lat, p.lon, p.name);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${p.name}, ${(p.amenity || "").replace(/_/g, " ")}${distLabel ? ", " + distLabel + " away" : ""}. Click to navigate.`}
+                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && startRouteToCoords(p.lat, p.lon, p.name)}
+                      >
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                            <span style={{ fontSize: "24px" }}>{icon}</span>
+                            <span style={{ fontWeight: 800, color: C.text, fontSize: "15px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                              {p.name}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                            <span style={{ fontSize: "12px", color: C.sub, textTransform: "capitalize", fontWeight: 600 }}>
+                              {(p.amenity || "").replace(/_/g, " ")}
+                            </span>
+                            {distLabel && (
+                              <span style={{
+                                fontSize: "13px",
+                                fontWeight: 800,
+                                color: distM < 500 ? "#22c55e" : distM < 2000 ? "#8b5cf6" : C.sub,
+                              }}>
+                                {distLabel}
+                              </span>
+                            )}
+                          </div>
+                          {p.address && (
+                            <div style={{ fontSize: "11px", color: C.sub, marginBottom: "12px", lineHeight: "1.3", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                              {p.address}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            speak(`Navigating to ${p.name}.`);
+                            startRouteToCoords(p.lat, p.lon, p.name);
+                          }}
+                          style={{
+                            width: "100%",
+                            background: "rgba(139,92,246,0.15)",
+                            border: "1.5px solid #8b5cf6",
+                            color: isDark ? "#c4b5fd" : "#6d28d9",
+                            padding: "10px 0",
+                            borderRadius: "10px",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            fontWeight: 800,
+                            fontFamily: "inherit",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                            transition: "background 0.15s ease",
+                          }}
+                          aria-label={`Navigate to ${p.name}`}
+                        >
+                          <span>🗺️</span>
+                          <span>Navigate</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Show All / Show Fewer Button */}
+                {filtered.length > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setNearbyExpanded((v) => !v)}
+                    style={{
+                      marginTop: "16px",
+                      background: C.input,
+                      border: `1.5px solid ${C.inBd}`,
+                      color: C.text,
+                      padding: "10px 20px",
+                      borderRadius: "12px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      fontFamily: "inherit",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                    aria-label={nearbyExpanded ? "Show fewer nearby places" : `Show all ${filtered.length} nearby places`}
+                  >
+                    <span>{nearbyExpanded ? "▲" : "▼"}</span>
+                    <span>{nearbyExpanded ? "Show fewer" : `Show all ${filtered.length} nearby places`}</span>
+                  </button>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* ───────────────────────────────────────────────────────────────────
@@ -1567,7 +2009,7 @@ export default function NavigationPage() {
         )}
 
         {/* ───────────────────────────────────────────────────────────────────
-           QUICK DESTINATIONS (Direct one-click routing, NO option prompts)
+           QUICK DESTINATIONS
         ─────────────────────────────────────────────────────────────────── */}
         <div className="card" style={{ marginBottom: "24px", padding: "20px" }}>
           <h3 style={{ ...s.sec, color: C.text, fontSize: "15px", marginBottom: "14px" }}>
@@ -1575,23 +2017,26 @@ export default function NavigationPage() {
           </h3>
           <div style={s.quickGrid}>
             {[
-              { label: "🏥 Hospital",        q: "hospital near me"        },
-              { label: "💊 Pharmacy",        q: "pharmacy near me"        },
-              { label: "🏧 ATM",             q: "ATM near me"             },
-              { label: "👮 Police Station",  q: "police station near me"  },
-              { label: "🚌 Bus Stop",        q: "bus stop near me"        },
-              { label: "🚉 Railway Station", q: "railway station near me" },
-              { label: "🛒 Supermarket",     q: "supermarket near me"     },
-              { label: "🏦 Bank",            q: "bank near me"            },
-              { label: "⛽ Petrol Station",  q: "petrol station near me"  },
-              { label: "🍽️ Restaurant",      q: "restaurant near me"      },
-              { label: "🏫 School",          q: "school near me"          },
+              { label: "🏥 Hospital",        tag: "hospital",      q: "hospital near me"        },
+              { label: "💊 Pharmacy",        tag: "pharmacy",      q: "pharmacy near me"        },
+              { label: "🏧 ATM",             tag: "atm",           q: "ATM near me"             },
+              { label: "👮 Police Station",  tag: "police",        q: "police station near me"  },
+              { label: "🚌 Bus Stop",        tag: "bus_stop",      q: "bus stop near me"        },
+              { label: "🚉 Railway Station", tag: "train_station", q: "railway station near me" },
+              { label: "🛒 Supermarket",     tag: "supermarket",   q: "supermarket near me"     },
+              { label: "🏦 Bank",            tag: "bank",          q: "bank near me"            },
+              { label: "⛽ Petrol Station",  tag: "fuel",          q: "petrol station near me"  },
+              { label: "🍽️ Restaurant",      tag: "restaurant",    q: "restaurant near me"      },
+              { label: "🏫 School",          tag: "school",        q: "school near me"          },
             ].map((p) => (
               <button
                 key={p.q}
+                type="button"
                 onClick={() => {
                   setDestination(p.q);
+                  setNearbyCategory(p.tag);
                   startRoute(p.q);
+                  findNearbyPlaces(p.tag);
                 }}
                 style={{
                   ...s.quickBtn,
@@ -1619,6 +2064,7 @@ export default function NavigationPage() {
               {savedLocations.map((loc) => (
                 <button
                   key={loc.id}
+                  type="button"
                   onClick={() => {
                     setDestination(loc.place_name);
                     startRoute(loc.place_name);
@@ -1655,6 +2101,7 @@ export default function NavigationPage() {
                     <div style={{ fontWeight: 700, color: C.text, fontSize: "14px" }}>{req.destination}</div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => {
                       setDestination(req.destination);
                       startRoute(req.destination);
@@ -1664,7 +2111,7 @@ export default function NavigationPage() {
                   >
                     🗺️ Route
                   </button>
-                  <button onClick={() => deleteRequest(req.id)} style={s.histDel} aria-label="Delete history entry">
+                  <button type="button" onClick={() => deleteRequest(req.id)} style={s.histDel} aria-label="Delete history entry">
                     🗑️
                   </button>
                 </div>
