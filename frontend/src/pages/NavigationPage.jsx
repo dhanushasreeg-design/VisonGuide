@@ -570,7 +570,8 @@ export default function NavigationPage() {
       const labelled = withLabels(places);
       setNearbyPlaces(labelled);
       setNearbyCategory(cat);
-      speakNearbyPlaces(labelled, cat);
+      if (window._vgPauseWake) { try { await window._vgPauseWake(); } catch {} }
+      speakNearbyPlaces(labelled, cat, { onDone: listenForFollowUp });
     } catch (err) {
       let msg = err.message || "Could not find nearby places. Please try again.";
       if (/denied|allow location|need your location/i.test(msg)) {
@@ -629,7 +630,7 @@ export default function NavigationPage() {
       text += `Option ${label}: ${p.name}, ${distLabel}. `;
     });
     if (withPrompt && top.length >= 1) {
-      text += `Say navigate to ${top.map((p, i) => p.label || letterLabel(i)).join(", ")}.`;
+      text += `Say Option A, Option B, or tap a card to navigate. Listening now.`;
     }
     if (onDone) speakWithCallback(text, onDone);
     else speak(text);
@@ -1192,6 +1193,9 @@ export default function NavigationPage() {
             ts: Date.now(),
           };
           setCurrentPos(pos);
+        } else if (currentPos?.lat && currentPos?.lon && (Date.now() - (currentPos.ts || 0)) < 60000) {
+          // Re-use fresh position from the nearby places search
+          pos = currentPos;
         } else {
           setRouteStatus("locating");
           speak("Getting your current location.");
@@ -1343,46 +1347,81 @@ export default function NavigationPage() {
       return true;
     }
 
-    const letterMatch = t.match(/^navigate to ([a-z])\b/) || t.match(/^go to ([a-z])\b/);
-    if (letterMatch) {
-      const list = nearbyCategory === "all" ? nearbyPlaces : nearbyPlaces.filter(p => p.amenity === nearbyCategory);
-      const wanted = letterMatch[1].toUpperCase();
-      const place = list.find(p => (p.label || "").toUpperCase() === wanted);
-      if (place) {
-        startRouteToCoords(place.lat, place.lon, place.name);
-      } else {
-        speak(`I don't have a place labelled ${wanted}. Say "read nearby places" to hear the current list.`);
+    /* ── Option Letter, Ordinal, or Name Matching ── */
+    const list = nearbyCategory === "all" ? nearbyPlaces : nearbyPlaces.filter(p => p.amenity === nearbyCategory);
+    if (list.length > 0) {
+      let targetPlace = null;
+
+      // 1. Matches: "a", "b", "c", "option a", "option b", "navigate to a", "navigate to option a", "go to a", "take me to option a", "select a", "choose a"
+      const letterMatch = t.match(/^(?:navigate to |go to |take me to |choose |select |route to )?(?:option\s+)?([a-e])\b/i);
+      if (letterMatch) {
+        const wanted = letterMatch[1].toUpperCase();
+        targetPlace = list.find(p => (p.label || "").toUpperCase() === wanted);
       }
-      return true;
+
+      // 2. Ordinals & numbers: "first", "first one", "1", "one", "number 1"
+      if (!targetPlace) {
+        if (/^(first|first one|number 1|1|one)$/i.test(t) && list[0]) targetPlace = list[0];
+        else if (/^(second|second one|number 2|2|two)$/i.test(t) && list[1]) targetPlace = list[1];
+        else if (/^(third|third one|number 3|3|three)$/i.test(t) && list[2]) targetPlace = list[2];
+        else if (/^(fourth|fourth one|number 4|4|four)$/i.test(t) && list[3]) targetPlace = list[3];
+        else if (/^(fifth|fifth one|number 5|5|five)$/i.test(t) && list[4]) targetPlace = list[4];
+      }
+
+      // 3. Name matches: "icici bank", "apollo", "medplus"
+      if (!targetPlace && t.length >= 3) {
+        targetPlace = list.find(p => {
+          const pName = (p.name || "").toLowerCase();
+          return pName.includes(t) || t.includes(pName);
+        });
+      }
+
+      if (targetPlace) {
+        speak(`Navigating to Option ${targetPlace.label || ""}, ${targetPlace.name}.`);
+        startRouteToCoords(targetPlace.lat, targetPlace.lon, targetPlace.name);
+        return true;
+      }
     }
 
     return false;
   };
 
-  /* Shared by the manual mic button AND the auto-reopened follow-up listener
-     below, so "navigate to A" is handled identically no matter which one
-     captured it. */
+  /* Shared by the manual mic button AND the auto-reopened follow-up listener */
   const handleTranscript = (transcript) => {
     if (handleVoiceFollowUp(transcript)) return;
+    const list = nearbyCategory === "all" ? nearbyPlaces : nearbyPlaces.filter(p => p.amenity === nearbyCategory);
+    if (list.length > 0 && /^(option|choice|letter|select|which)/i.test(transcript.trim())) {
+      speak("Please say Option A, Option B, or tap a card to navigate.");
+      return;
+    }
     const dest = transcript;
     setDestination(dest);
     setTimeout(() => startRoute(dest), 400);
   };
 
-  /* Re-opens the mic for ONE follow-up command right after the nearby-places
-     list finishes being spoken, so "navigate to A" works without the user
-     pressing the mic button (or saying the wake word) again. Always ends by
-     resuming the background wake-word listener, whether it heard something,
-     errored, or timed out — so it can never get stuck disabled. This is a
-     single one-shot listen, not a loop: whatever command it captures is
-     handled exactly like a normal manual mic press and nothing re-arms
-     itself afterward. */
+  /* Pleasant audio chime to alert visually impaired users when listening begins */
+  const playListenChime = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } catch {}
+  };
+
+  /* Re-opens the mic for follow-up option choice right after speech finishes */
   const listenForFollowUp = () => {
     const resumeWake = () => { if (window._vgResumeWake) { try { window._vgResumeWake(); } catch {} } };
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    // Don't start a second recognizer if one is already active (manual mic
-    // press, or an overlapping follow-up window) — just hand control back.
     if (!SR || voiceListening || followUpActiveRef.current) { resumeWake(); return; }
 
     followUpActiveRef.current = true;
@@ -1395,60 +1434,61 @@ export default function NavigationPage() {
       resumeWake();
     };
 
-    // Small delay before opening the mic so it doesn't catch the tail end of
-    // the announcement itself as input.
     setTimeout(() => {
-      if (stopRef.current) { finish(); return; } // Clear/Stop happened while we were waiting
+      if (stopRef.current) { finish(); return; }
+      try {
+        const rec = new SR();
+        rec.lang = settings.language;
+        rec.continuous = false;
+        rec.interimResults = false;
+        recRef.current = rec;
+
+        const timeout = setTimeout(() => { try { rec.stop(); } catch {} finish(); }, 9000);
+
+        rec.onresult = (e) => {
+          if (handled) return;
+          handled = true;
+          clearTimeout(timeout);
+          followUpActiveRef.current = false;
+          setVoiceListening(false);
+          resumeWake();
+          handleTranscript(e.results[0][0].transcript.trim());
+        };
+        rec.onerror = () => { clearTimeout(timeout); finish(); };
+        rec.onend   = () => { clearTimeout(timeout); finish(); };
+
+        rec.start();
+        setVoiceListening(true);
+        playListenChime();
+      } catch {
+        finish();
+      }
+    }, 450);
+  };
+
+  const startVoiceInput = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { speak("Voice input not supported in this browser. Please use Chrome."); return; }
+    if (voiceListening) { recRef.current?.stop(); setVoiceListening(false); return; }
+    try {
       const rec = new SR();
       rec.lang = settings.language;
       rec.continuous = false;
       rec.interimResults = false;
       recRef.current = rec;
-
-      // Safety timeout — if the user says nothing, don't leave the mic (and
-      // the paused wake-word listener) hanging indefinitely.
-      const timeout = setTimeout(() => { try { rec.stop(); } catch {} finish(); }, 8000);
-
+      rec.start();
+      setVoiceListening(true);
+      playListenChime();
       rec.onresult = (e) => {
-        if (handled) return;
-        handled = true;
-        clearTimeout(timeout);
-        followUpActiveRef.current = false;
+        const transcript = e.results[0][0].transcript.trim();
         setVoiceListening(false);
-        resumeWake();
-        handleTranscript(e.results[0][0].transcript.trim());
+        handleTranscript(transcript);
       };
-      rec.onerror = () => { clearTimeout(timeout); finish(); };
-      rec.onend   = () => { clearTimeout(timeout); finish(); };
-
-      try {
-        rec.start();
-        setVoiceListening(true);
-      } catch {
-        finish();
-      }
-    }, 400);
-  };
-
-  const startVoiceInput = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { speak("Voice input not supported. Please use Chrome."); return; }
-    if (voiceListening) { recRef.current?.stop(); setVoiceListening(false); return; }
-    const rec = new SR();
-    rec.lang = settings.language;
-    rec.continuous = false;
-    rec.interimResults = false;
-    recRef.current = rec;
-    rec.start();
-    setVoiceListening(true);
-    speak("Say your destination, or a command like navigate to A, read nearby places, or stop.");
-    rec.onresult = (e) => {
-      const transcript = e.results[0][0].transcript.trim();
+      rec.onerror  = () => { setVoiceListening(false); speak("Could not understand. Try again."); };
+      rec.onend    = () => setVoiceListening(false);
+    } catch {
       setVoiceListening(false);
-      handleTranscript(transcript);
-    };
-    rec.onerror  = () => { setVoiceListening(false); speak("Could not understand. Try again."); };
-    rec.onend    = () => setVoiceListening(false);
+    }
   };
 
   const openInMaps = (dest = destination) => {
@@ -1780,7 +1820,64 @@ export default function NavigationPage() {
             if (!shown.length) return null;
             return (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px" }}>
+                {/* Voice Option Selection Status & Mic Control Banner */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  marginBottom: "14px",
+                  borderRadius: "12px",
+                  background: voiceListening ? "rgba(239, 68, 68, 0.12)" : isDark ? "rgba(167, 139, 250, 0.1)" : "rgba(167, 139, 250, 0.08)",
+                  border: `1.5px solid ${voiceListening ? "#ef4444" : "#a78bfa"}`,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "22px" }}>
+                      {voiceListening ? "🔴" : "🎙️"}
+                    </span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "14px", color: voiceListening ? "#ef4444" : C.text }}>
+                        {voiceListening ? "Microphone Active — Say 'Option A' or 'Option B'" : "Voice & Touch Selection Active"}
+                      </div>
+                      <div style={{ fontSize: "12px", color: C.sub }}>
+                        {voiceListening ? "Speak clearly now, or tap any Option card below" : "Say 'Option A', 'Option B', or press any card below"}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (voiceListening) {
+                        recRef.current?.stop();
+                        setVoiceListening(false);
+                      } else {
+                        listenForFollowUp();
+                      }
+                    }}
+                    style={{
+                      background: voiceListening ? "#ef4444" : "#8b5cf6",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "8px 16px",
+                      fontWeight: 700,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                    }}
+                    aria-label={voiceListening ? "Stop voice listening" : "Tap to speak your option choice"}
+                  >
+                    <span>{voiceListening ? "⏹" : "🎙️"}</span>
+                    <span>{voiceListening ? "Stop Listening" : "Tap to Speak Option"}</span>
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
                   {shown.map((p, idx) => {
                     const icon      = AMENITY_ICON[p.amenity] || "📍";
                     const label     = p.label || letterLabel(idx);
@@ -1792,65 +1889,66 @@ export default function NavigationPage() {
                       <div
                         key={p.id || idx}
                         style={{
-                          background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
-                          border: `1px solid ${C.border}`,
-                          borderRadius: "12px",
-                          padding: "12px 14px",
+                          background: isDark ? "rgba(255,255,255,0.03)" : "#ffffff",
+                          border: `2px solid ${C.border}`,
+                          borderRadius: "14px",
+                          padding: "14px",
                           cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          boxShadow: isDark ? "none" : "0 2px 8px rgba(0,0,0,0.04)",
                         }}
-                        onClick={() => speak(
-                          `${label}. ${p.name}. ${(p.amenity || "").replace(/_/g, " ")}.` +
-                          ` Address: ${p.address ? p.address : "Address information is unavailable."}` +
-                          `${distLabel ? " Distance: " + distLabel + " away." : ""}`
-                        )}
-                        title={`Hear about ${p.name}`}
+                        onClick={() => {
+                          speak(`Navigating to Option ${label}, ${p.name}.`);
+                          startRouteToCoords(p.lat, p.lon, p.name);
+                        }}
                         role="button"
-                        aria-label={`${label}, ${p.name}, ${(p.amenity || "").replace(/_/g, " ")}${distLabel ? ", " + distLabel + " away" : ""}`}
+                        tabIndex={0}
+                        aria-label={`Option ${label}: ${p.name}, ${(p.amenity || "").replace(/_/g, " ")}${distLabel ? ", " + distLabel + " away" : ""}. Click to navigate.`}
+                        onKeyDown={e => (e.key === "Enter" || e.key === " ") && startRouteToCoords(p.lat, p.lon, p.name)}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "5px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
                           <span style={{
-                            fontSize: "12px", fontWeight: 800, color: "#a78bfa",
-                            background: "rgba(167,139,250,0.15)", borderRadius: "6px",
-                            width: "20px", height: "20px", display: "flex",
+                            fontSize: "13px", fontWeight: 800, color: "#fff",
+                            background: "#8b5cf6", borderRadius: "8px",
+                            width: "26px", height: "26px", display: "flex",
                             alignItems: "center", justifyContent: "center", flexShrink: 0,
                           }}>
                             {label}
                           </span>
                           <span style={{ fontSize: "22px" }}>{icon}</span>
-                          <span style={{ fontWeight: 700, color: C.text, fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                          <span style={{ fontWeight: 700, color: C.text, fontSize: "14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                             {p.name}
                           </span>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                           <span style={{ fontSize: "11px", color: C.sub, textTransform: "capitalize" }}>
                             {(p.amenity || "").replace(/_/g, " ")}
                           </span>
                           {distLabel && (
                             <span style={{
-                              fontSize: "12px", fontWeight: 700,
-                              color: distM < 500 ? "#22c55e" : distM < 2000 ? "#a78bfa" : C.sub,
+                              fontSize: "13px", fontWeight: 700,
+                              color: distM < 500 ? "#22c55e" : distM < 2000 ? "#8b5cf6" : C.sub,
                             }}>
                               {distLabel}
                             </span>
                           )}
                         </div>
                         <button
+                          type="button"
                           onClick={e => {
                             e.stopPropagation();
-                            // Route directly to this place's known coordinates rather
-                            // than re-searching its name (which could match a
-                            // different, same-named place elsewhere).
+                            speak(`Navigating to Option ${label}, ${p.name}.`);
                             startRouteToCoords(p.lat, p.lon, p.name);
                           }}
                           style={{
-                            width: "100%", background: "rgba(167,139,250,0.1)",
-                            border: "1px solid rgba(167,139,250,0.25)", color: "#a78bfa",
-                            padding: "7px 0", borderRadius: "8px", cursor: "pointer",
+                            width: "100%", background: "rgba(139,92,246,0.15)",
+                            border: "1.5px solid #8b5cf6", color: isDark ? "#c4b5fd" : "#6d28d9",
+                            padding: "9px 0", borderRadius: "8px", cursor: "pointer",
                             fontSize: "13px", fontWeight: 700, fontFamily: "inherit",
                           }}
-                          aria-label={`Navigate to ${p.name}`}
+                          aria-label={`Navigate to Option ${label}, ${p.name}`}
                         >
-                          🗺️ Navigate
+                          🗺️ Navigate to Option {label}
                         </button>
                       </div>
                     );
