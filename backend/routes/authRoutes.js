@@ -1,7 +1,9 @@
-const express  = require("express");
-const bcrypt   = require("bcrypt");
-const jwt      = require("jsonwebtoken");
-const supabase = require("../config/supabase");
+const express    = require("express");
+const bcrypt     = require("bcrypt");
+const jwt        = require("jsonwebtoken");
+const crypto     = require("crypto");
+const supabase   = require("../config/supabase");
+const localStore = require("../config/localStore");
 
 const router        = express.Router();
 const BCRYPT_ROUNDS = 12;
@@ -27,25 +29,47 @@ router.post("/register", async (req, res) => {
 
     const normalEmail = email.trim().toLowerCase();
 
-    const { data: existing, error: lookupErr } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", normalEmail)
-      .maybeSingle();
-    if (lookupErr) throw lookupErr;
+    // Check Supabase first, fallback to local users
+    let existing = null;
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", normalEmail)
+        .maybeSingle();
+      if (!error) existing = data;
+    } catch {}
+
+    if (!existing) {
+      existing = localStore.find("users", (u) => (u.email || "").toLowerCase() === normalEmail)[0];
+    }
+
     if (existing)
       return res.status(409).json({ message: "Email already registered. Please sign in." });
 
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    const { data: user, error: insertErr } = await supabase
-      .from("users")
-      .insert([{ name: name.trim(), email: normalEmail, password_hash }])
-      .select("id, name, email")
-      .single();
-    if (insertErr) throw insertErr;
+    let createdUser = null;
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .insert([{ name: name.trim(), email: normalEmail, password_hash }])
+        .select("id, name, email")
+        .single();
+      if (!error && data) createdUser = data;
+    } catch {}
 
-    res.status(201).json({ id: user.id, name: user.name, email: user.email, token: signToken(user) });
+    // Fallback: save to local store if Supabase failed
+    if (!createdUser) {
+      createdUser = localStore.insert("users", {
+        name: name.trim(),
+        email: normalEmail,
+        password: password_hash,
+        password_hash,
+      });
+    }
+
+    res.status(201).json({ id: createdUser.id, name: createdUser.name, email: createdUser.email, token: signToken(createdUser) });
   } catch (err) {
     const detail = err.cause?.message || err.message;
     console.error("[register]", detail);
@@ -62,14 +86,49 @@ router.post("/login", async (req, res) => {
     if (!email?.trim() || !password)
       return res.status(400).json({ message: "Email and password are required." });
 
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("id, name, email, password_hash")
-      .eq("email", email.trim().toLowerCase())
-      .maybeSingle();
-    if (error) throw error;
+    const normalEmail = email.trim().toLowerCase();
+    let user = null;
 
-    if (!user || !(await bcrypt.compare(password, user.password_hash)))
+    // 1. Try Supabase
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, name, email, password_hash")
+        .eq("email", normalEmail)
+        .maybeSingle();
+      if (!error && data) user = data;
+    } catch (sbErr) {
+      console.warn("[login] Supabase lookup error:", sbErr.message);
+    }
+
+    // 2. Fallback to local users.json if Supabase is down/paused
+    if (!user) {
+      const match = localStore.find("users", (u) => (u.email || "").toLowerCase() === normalEmail)[0];
+      if (match) {
+        user = {
+          id: match.id,
+          name: match.name,
+          email: match.email,
+          password_hash: match.password_hash || match.password,
+        };
+      }
+    }
+
+    if (!user)
+      return res.status(401).json({ message: "Invalid email or password." });
+
+    // Verify password: check bcrypt or legacy SHA-256
+    let valid = false;
+    if (user.password_hash?.startsWith("$2b$") || user.password_hash?.startsWith("$2a$")) {
+      valid = await bcrypt.compare(password, user.password_hash);
+    } else if (user.password_hash?.length === 64) {
+      const sha = crypto.createHash("sha256").update(password).digest("hex");
+      valid = (sha === user.password_hash);
+    } else {
+      valid = await bcrypt.compare(password, user.password_hash).catch(() => false);
+    }
+
+    if (!valid)
       return res.status(401).json({ message: "Invalid email or password." });
 
     res.json({ id: user.id, name: user.name, email: user.email, token: signToken(user) });

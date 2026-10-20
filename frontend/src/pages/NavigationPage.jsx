@@ -204,9 +204,13 @@ export default function NavigationPage() {
   const [routeStatus, setRouteStatus] = useState("idle");
   const [route, setRoute] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
-  const [savedLocations, setSavedLocations] = useState([]);
+  const [savedLocations, setSavedLocations] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("vg_saved_locations") || "[]"); } catch { return []; }
+  });
   const [voiceListening, setVoiceListening] = useState(false);
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("vg_navigation_history") || "[]"); } catch { return []; }
+  });
 
   /* ── Nearby Suggesting Places State ── */
   const [nearbyPlaces, setNearbyPlaces] = useState([]);
@@ -260,8 +264,23 @@ export default function NavigationPage() {
 
   /* ── Initial Data & URL parameter auto-routing ── */
   useEffect(() => {
-    API.get("/locations").then((r) => setSavedLocations(r.data)).catch(() => {});
-    API.get("/navigation").then((r) => setRequests(r.data)).catch(() => {});
+    API.get("/locations")
+      .then((r) => {
+        if (Array.isArray(r.data)) {
+          setSavedLocations(r.data);
+          try { localStorage.setItem("vg_saved_locations", JSON.stringify(r.data)); } catch {}
+        }
+      })
+      .catch(() => {});
+
+    API.get("/navigation")
+      .then((r) => {
+        if (Array.isArray(r.data)) {
+          setRequests(r.data);
+          try { localStorage.setItem("vg_navigation_history", JSON.stringify(r.data)); } catch {}
+        }
+      })
+      .catch(() => {});
 
     // Automatically acquire initial GPS location and fetch nearby options on load
     getCurrentLocation()
@@ -878,9 +897,14 @@ export default function NavigationPage() {
     setRoute(routeData);
     setRouteStatus("done");
 
-    // Persist to backend history
+    // Persist to backend & local history
+    const historyItem = { id: Date.now().toString(), destination: destLabel };
+    setRequests((prev) => {
+      const updated = [historyItem, ...prev.filter((r) => r.destination !== destLabel)].slice(0, 10);
+      try { localStorage.setItem("vg_navigation_history", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
     API.post("/navigation", { destination: destLabel }).catch(() => {});
-    API.get("/navigation").then((res) => setRequests(res.data)).catch(() => {});
 
     // Audio summary for blind user
     const distKm = (osrmRoute.distance / 1000).toFixed(1);
@@ -1207,8 +1231,12 @@ export default function NavigationPage() {
   const deleteRequest = async (id) => {
     try {
       await API.delete(`/navigation/${id}`);
-      setRequests((p) => p.filter((r) => r.id !== id));
     } catch {}
+    setRequests((p) => {
+      const updated = p.filter((r) => r.id !== id);
+      try { localStorage.setItem("vg_navigation_history", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
   };
 
   /* ─────────────────────────────────────────────────────────────────────────

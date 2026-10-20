@@ -17,9 +17,15 @@ export default function SavedLocationsPage() {
     darkBg:      isDark ? "#0a0f1e"              : "rgba(0,0,0,0.04)",
     cancelBg:    isDark ? "#374151"              : "rgba(0,0,0,0.08)",
   };
-  const [locations, setLocations] = useState([]);
+  const [locations, setLocations] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("vg_saved_locations") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [form, setForm] = useState({ place_name: "", address: "" });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [search, setSearch] = useState("");
@@ -33,7 +39,18 @@ export default function SavedLocationsPage() {
 
   const fetchLocations = async () => {
     setLoading(true);
-    try { const res = await API.get("/locations"); setLocations(res.data); } catch (_) {}
+    try {
+      const res = await API.get("/locations");
+      if (Array.isArray(res.data)) {
+        setLocations(res.data);
+        try { localStorage.setItem("vg_saved_locations", JSON.stringify(res.data)); } catch {}
+      }
+    } catch (_) {
+      try {
+        const cached = JSON.parse(localStorage.getItem("vg_saved_locations") || "[]");
+        if (cached.length) setLocations(cached);
+      } catch {}
+    }
     setLoading(false);
   };
 
@@ -41,23 +58,41 @@ export default function SavedLocationsPage() {
 
   const addLocation = async (e) => {
     e.preventDefault();
+    if (!form.place_name?.trim()) return;
     setSaving(true);
+    const placeName = form.place_name.trim();
+    const address = form.address?.trim() || "";
+    let savedItem = null;
+
     try {
-      await API.post("/locations", form);
-      setForm({ place_name: "", address: "" });
-      await fetchLocations();
-      showMessage(`"${form.place_name}" saved successfully.`);
-      speak(`${form.place_name} saved to your locations.`);
+      const res = await API.post("/locations", { place_name: placeName, address });
+      savedItem = res.data;
     } catch (err) {
-      showMessage(err.response?.data?.message || "Failed to save.", "error");
+      // Local fallback if Supabase is offline/paused
+      savedItem = { id: Date.now().toString(), place_name: placeName, address };
     }
+
+    setLocations((prev) => {
+      const updated = [savedItem, ...prev.filter((l) => l.place_name !== placeName)];
+      try { localStorage.setItem("vg_saved_locations", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
+    setForm({ place_name: "", address: "" });
+    showMessage(`"${placeName}" saved successfully.`);
+    speak(`${placeName} saved to your locations.`);
     setSaving(false);
   };
 
   const deleteLocation = async (id) => {
     setConfirmId(null);
-    try { await API.delete(`/locations/${id}`); await fetchLocations(); showMessage("Location deleted."); }
-    catch (_) {}
+    try { await API.delete(`/locations/${id}`); } catch (_) {}
+    setLocations((prev) => {
+      const updated = prev.filter((l) => String(l.id) !== String(id));
+      try { localStorage.setItem("vg_saved_locations", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    showMessage("Location deleted.");
   };
 
   const openMaps = (loc) => {
