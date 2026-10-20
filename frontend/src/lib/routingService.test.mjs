@@ -157,3 +157,15 @@ test("searchNearbyPlaces - live OSM lookup without API keys", async () => {
   assert.ok(first.distM >= 0, "has valid distance");
   assert.ok(first.formattedDist, "has speech-ready distance");
 });
+
+test("searchNearbyPlaces - discovers very close POIs starting from 1 km", async () => {
+  const lat = 13.0827, lon = 80.2707;
+  // Default tiered search starts at 1.0 km
+  const places = await searchNearbyPlaces("atm", lat, lon);
+  assert.ok(Array.isArray(places), "returns places");
+  assert.ok(places.length > 0, "found close ATMs");
+  const closest = places[0];
+  // Verify closest place is within 1.5 km
+  assert.ok(closest.distM < 1500, `closest ATM is within 1.5 km (was ${closest.distM}m)`);
+});
+

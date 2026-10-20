@@ -439,7 +439,7 @@ export default function NavigationPage() {
     setNearbyError("");
     setNearbyPlaces([]);
     try {
-      const places = await searchNearbyPlaces(cat, userLat, userLon, { radiusKm: 10 });
+      const places = await searchNearbyPlaces(cat, userLat, userLon);
       if (nearbyStopRef.current) return [];
       if (!places || places.length === 0) {
         const catWord = cat === "all" ? "places" : `${categoryWordFor(cat)}`;
@@ -481,8 +481,8 @@ export default function NavigationPage() {
         setCurrentPos(pos);
       }
       const catWord = cat === "all" ? "places" : `${categoryWordFor(cat)}`;
-      speak(`Finding ${catWord} near you.`);
-      const places = await searchNearbyPlaces(cat, pos.lat, pos.lon, { radiusKm: 10 });
+      speak(`Finding ${catWord} near you starting from 1 km.`);
+      const places = await searchNearbyPlaces(cat, pos.lat, pos.lon);
       if (nearbyStopRef.current) return;
       if (!places || places.length === 0) {
         const msg = `No ${catWord} found near your location.`;
@@ -969,7 +969,7 @@ export default function NavigationPage() {
           const tag = amenityFromQuery(dest) || "hospital";
           setRouteStatus("routing");
           speak(`Finding closest ${tag.replace(/_/g, " ")} near you.`);
-          const places = await searchNearbyPlaces(tag, pos.lat, pos.lon, { radiusKm: 10 });
+          const places = await searchNearbyPlaces(tag, pos.lat, pos.lon);
           if (stopRef.current) return;
 
           if (!places || places.length === 0) {
@@ -1638,8 +1638,8 @@ export default function NavigationPage() {
                 <span style={{ fontSize: "12px", color: "#a78bfa", fontWeight: 600 }}>📡 Finding places near you…</span>
               )}
               {!nearbyLoading && nearbyPlaces.length > 0 && (
-                <span style={{ fontSize: "12px", color: C.sub }}>
-                  ({nearbyPlaces.length} found · sorted nearest first)
+                <span style={{ fontSize: "12px", color: "#22c55e", fontWeight: 700 }}>
+                  ({nearbyPlaces.length} found · closest: {nearbyPlaces[0]?.distM < 1000 ? `${Math.round(nearbyPlaces[0]?.distM)} m` : `${(nearbyPlaces[0]?.distM / 1000).toFixed(1)} km`})
                 </span>
               )}
             </div>
@@ -1816,7 +1816,11 @@ export default function NavigationPage() {
                               <span style={{
                                 fontSize: "13px",
                                 fontWeight: 800,
-                                color: distM < 500 ? "#22c55e" : distM < 2000 ? "#8b5cf6" : C.sub,
+                                padding: "2px 8px",
+                                borderRadius: "6px",
+                                background: distM < 500 ? "rgba(34,197,94,0.15)" : distM < 1000 ? "rgba(167,139,250,0.15)" : "rgba(100,116,139,0.1)",
+                                color: distM < 500 ? "#22c55e" : distM < 1000 ? "#a78bfa" : C.sub,
+                                border: distM < 1000 ? `1px solid ${distM < 500 ? "#22c55e" : "#a78bfa"}40` : "none",
                               }}>
                                 {distLabel}
                               </span>

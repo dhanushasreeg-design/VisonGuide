@@ -272,6 +272,8 @@ export const NEARBY_TAG_MAP = {
 
 /**
  * Fast, reliable POI lookup using OpenStreetMap Nominatim bounded viewbox search.
+ * Tiered search: Starts from 1.0 km, expanding to 2.5 km and 5.0 km if needed,
+ * ensuring very close places (under 1 km, 200m, 500m) are prioritized and shown first.
  * Strictly 100% free and requires zero API keys.
  */
 export const searchNearbyPlaces = async (category = "all", userLat, userLon, options = {}) => {
@@ -279,16 +281,18 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
     throw new Error("Valid GPS coordinates are required to find nearby places.");
   }
 
-  const radiusKm = options.radiusKm || 8;
-  const delta = radiusKm / 111.32;
-  const deltaLon = delta / Math.max(0.1, Math.cos((userLat * Math.PI) / 180));
-  const bbox = `${userLon - deltaLon},${userLat + delta},${userLon + deltaLon},${userLat - delta}`;
+  // Tiered search: Starts from 1.0 km so very close places are discovered first
+  const radii = options.radiusKm ? [options.radiusKm] : [1.0, 2.5, 5.0];
 
-  const queryNominatimSingle = async (queryText, limit = 8) => {
+  const queryNominatimSingle = async (queryText, limit = 20, radiusKm = 1.0) => {
+    const delta = radiusKm / 111.32;
+    const deltaLon = delta / Math.max(0.1, Math.cos((userLat * Math.PI) / 180));
+    const bbox = `${userLon - deltaLon},${userLat + delta},${userLon + deltaLon},${userLat - delta}`;
+
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryText)}&format=jsonv2&limit=${limit}&viewbox=${bbox}&bounded=1&addressdetails=1`;
     const res = await fetch(url, {
       headers: { "User-Agent": "VisionGuideAI/1.0 (Accessibility Assistant)" },
-      signal: AbortSignal.timeout(options.timeoutMs || 5000),
+      signal: AbortSignal.timeout(options.timeoutMs || 6000),
     });
     if (!res.ok) throw new Error(`Search service error: ${res.status}`);
     const data = await res.json();
@@ -297,46 +301,54 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
 
   let rawPlaces = [];
 
-  if (category === "all") {
-    // Parallel query top essential necessities for visually impaired people
-    const essentials = [
-      { tag: "hospital", q: "hospital" },
-      { tag: "pharmacy", q: "pharmacy" },
-      { tag: "bus_stop", q: "bus stop" },
-      { tag: "atm", q: "atm" },
-      { tag: "supermarket", q: "supermarket" },
-      { tag: "police", q: "police station" },
-    ];
+  for (const currentRadius of radii) {
+    if (category === "all") {
+      const essentials = [
+        { tag: "hospital", q: "hospital" },
+        { tag: "clinic", q: "clinic" },
+        { tag: "pharmacy", q: "pharmacy" },
+        { tag: "atm", q: "atm" },
+        { tag: "bank", q: "bank" },
+        { tag: "bus_stop", q: "bus stop" },
+        { tag: "supermarket", q: "supermarket" },
+        { tag: "police", q: "police station" },
+        { tag: "restaurant", q: "restaurant" },
+      ];
 
-    const promises = essentials.map(async (item) => {
+      const promises = essentials.map(async (item) => {
+        try {
+          const items = await queryNominatimSingle(item.q, 15, currentRadius);
+          return items.map((p) => ({ ...p, _amenity: item.tag }));
+        } catch {
+          return [];
+        }
+      });
+
+      const nested = await Promise.all(promises);
+      rawPlaces = nested.flat();
+    } else {
+      const config = NEARBY_TAG_MAP[category] || { primary: category.replace(/_/g, " "), alternates: [] };
       try {
-        const items = await queryNominatimSingle(item.q, 3);
-        return items.map(p => ({ ...p, _amenity: item.tag }));
+        rawPlaces = await queryNominatimSingle(config.primary, 25, currentRadius);
+        rawPlaces = rawPlaces.map((p) => ({ ...p, _amenity: category }));
       } catch {
-        return [];
+        rawPlaces = [];
       }
-    });
 
-    const nested = await Promise.all(promises);
-    rawPlaces = nested.flat();
-  } else {
-    const config = NEARBY_TAG_MAP[category] || { primary: category.replace(/_/g, " "), alternates: [] };
-    try {
-      rawPlaces = await queryNominatimSingle(config.primary, 15);
-      rawPlaces = rawPlaces.map(p => ({ ...p, _amenity: category }));
-    } catch {
-      rawPlaces = [];
+      if (rawPlaces.length < 5 && config.alternates?.length) {
+        for (const alt of config.alternates) {
+          try {
+            const extra = await queryNominatimSingle(alt, 15, currentRadius);
+            rawPlaces.push(...extra.map((p) => ({ ...p, _amenity: category })));
+            if (rawPlaces.length >= 10) break;
+          } catch {}
+        }
+      }
     }
 
-    // If initial query was sparse, try alternate search terms
-    if (rawPlaces.length < 3 && config.alternates?.length) {
-      for (const alt of config.alternates) {
-        try {
-          const extra = await queryNominatimSingle(alt, 8);
-          rawPlaces.push(...extra.map(p => ({ ...p, _amenity: category })));
-          if (rawPlaces.length >= 5) break;
-        } catch {}
-      }
+    // If we found at least 5 quality places in this radius tier (or if user specified a fixed radius), stop expanding!
+    if (rawPlaces.length >= 5 || options.radiusKm) {
+      break;
     }
   }
 
@@ -371,5 +383,5 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
   }
 
   parsed.sort((a, b) => a.distM - b.distM);
-  return parsed.slice(0, 15);
+  return parsed.slice(0, 25);
 };
