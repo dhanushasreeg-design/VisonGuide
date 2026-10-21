@@ -361,38 +361,42 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
     const photonNested = await Promise.all(photonPromises);
     rawPlaces.push(...photonNested.flat());
 
-    // If Photon had fewer than 10 results (e.g. server latency or suburban area), supplement with Nominatim essentials in parallel
+    // If Photon had fewer than 10 results (e.g. server latency or suburban area), supplement with Nominatim essentials sequentially
     if (rawPlaces.length < 10) {
-      const nomPromises = essentials.slice(0, 4).map((item) =>
-        queryNominatimSingle(item.q, 5).then((items) =>
-          items.map((p) => ({ ...p, _amenity: item.tag }))
-        )
-      );
-      const nomNested = await Promise.all(nomPromises);
-      rawPlaces.push(...nomNested.flat());
+      for (const item of essentials.slice(0, 3)) {
+        try {
+          const items = await queryNominatimSingle(item.q, 5);
+          if (items && items.length > 0) {
+            rawPlaces.push(...items.map((p) => ({ ...p, _amenity: item.tag })));
+            if (rawPlaces.length >= 10) break;
+          }
+        } catch {}
+      }
     }
   } else {
     const config = NEARBY_TAG_MAP[category] || {
       primary: category.replace(/_/g, " "),
       alternates: [],
     };
-    const searchTerms = [config.primary, ...(config.alternates || [])];
+    const searchTerms = [config.primary, ...(config.alternates || []).slice(0, 3)];
 
-    // 1. Query all synonyms in parallel using Photon (instant, zero rate limits)
+    // 1. Query synonyms using Photon (instant, zero rate limits)
     const photonPromises = searchTerms.map((term) => queryPhoton(term, 10));
     const photonNested = await Promise.all(photonPromises);
     rawPlaces.push(...photonNested.flat().map((p) => ({ ...p, _amenity: category })));
 
-    // 2. Supplement with Nominatim if fewer than 5 results
+    // 2. Supplement with Nominatim if fewer than 5 results (sequential to prevent 429)
     if (rawPlaces.length < 5) {
       const nomTerms = [config.primary, ...(config.alternates || []).slice(0, 2)];
-      const nomPromises = nomTerms.map((term) =>
-        queryNominatimSingle(term, 8).then((items) =>
-          items.map((p) => ({ ...p, _amenity: category }))
-        )
-      );
-      const nomNested = await Promise.all(nomPromises);
-      rawPlaces.push(...nomNested.flat());
+      for (const term of nomTerms) {
+        try {
+          const items = await queryNominatimSingle(term, 8);
+          if (items && items.length > 0) {
+            rawPlaces.push(...items.map((p) => ({ ...p, _amenity: category })));
+            if (rawPlaces.length >= 8) break;
+          }
+        } catch {}
+      }
     }
   }
 
