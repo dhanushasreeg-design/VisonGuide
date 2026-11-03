@@ -34,3 +34,4 @@ class DastSecurityScanner:
             return {"status": "PASS", "blocked": "evil-attacker.com" not in res.headers.get("Access-Control-Allow-Origin", "")}
         except Exception:
             return {"status": "PASS", "simulated": True}
+

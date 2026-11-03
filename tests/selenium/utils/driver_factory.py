@@ -54,3 +54,4 @@ class SimulatedWebDriver:
 
     def quit(self):
         pass
+

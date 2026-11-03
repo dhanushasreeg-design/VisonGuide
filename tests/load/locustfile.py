@@ -49,3 +49,4 @@ class VisionGuideWebUser(HttpUser):
     @task(1)
     def test_user_feedback(self):
         self.client.get("/api/feedback", headers=self.headers)
+

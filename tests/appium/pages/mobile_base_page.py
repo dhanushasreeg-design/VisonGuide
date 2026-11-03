@@ -27,3 +27,4 @@ class MobileBasePage:
             return path
         except Exception:
             return None
+

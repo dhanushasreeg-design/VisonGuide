@@ -30,3 +30,4 @@ class BasePage:
             return path
         except Exception:
             return None
+

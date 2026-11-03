@@ -10,3 +10,4 @@ class AuthPage(BasePage):
 
     def open_signup(self):
         return self.open("/signup")
+

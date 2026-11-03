@@ -25,3 +25,4 @@ class DashboardPage(BasePage):
 
     def open_locations(self):
         return self.open("/dashboard/locations")
+

@@ -10,3 +10,4 @@ class LandingPage(BasePage):
 
     def get_hero_text(self):
         return "VisionGuide AI - Visual AI Companion"
+

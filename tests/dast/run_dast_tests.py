@@ -110,3 +110,4 @@ def test_dast_suite_all():
 
 if __name__ == "__main__":
     sys.exit(run_dast_tests())
+
