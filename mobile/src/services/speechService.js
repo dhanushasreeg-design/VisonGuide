@@ -18,6 +18,46 @@ export function parseVoiceCommand(rawText) {
     return { type: 'time', reply: `The current time is ${timeStr}.` };
   }
 
+  // Call Contact or Person or Number
+  if (/\b(call|phone|dial|ring)\b/i.test(text)) {
+    let target = text
+      .replace(/\b(please|can you|could you|i want to|i need to|help me)\b/gi, '')
+      .replace(/\b(call|phone|dial|ring)\b/gi, '')
+      .replace(/\b(my|the|a|an|contact|person|number|mobile|phone number)\b/gi, '')
+      .trim();
+
+    const cleanDigits = target.replace(/[^0-9+]/g, '');
+    let phoneToDial = '112';
+    let personName = target || 'Emergency Services';
+
+    if (cleanDigits.length >= 3) {
+      phoneToDial = cleanDigits;
+      personName = cleanDigits;
+    } else if (/doctor|hospital|clinic/i.test(target)) {
+      phoneToDial = '+919876543210';
+      personName = 'Doctor';
+    } else if (/police|cop/i.test(target)) {
+      phoneToDial = '112';
+      personName = 'Police';
+    } else if (/ambulance|paramedic/i.test(target)) {
+      phoneToDial = '108';
+      personName = 'Ambulance';
+    } else if (/mom|mother|dad|father|sister|brother|family|caregiver/i.test(target)) {
+      phoneToDial = '+919876512345';
+      personName = target || 'Family Caregiver';
+    } else if (target) {
+      phoneToDial = '+919876543210';
+      personName = target;
+    }
+
+    return {
+      type: 'call',
+      phone: phoneToDial,
+      name: personName,
+      reply: `Calling ${personName}. Dialing ${phoneToDial} now.`,
+    };
+  }
+
   // Contacts
   if (text.includes('contact') || text.includes('who to call') || text.includes('emergency contact')) {
     return { type: 'navigate_screen', screen: 'EmergencyContacts', reply: 'Opening your Emergency Contacts.' };
@@ -95,3 +135,4 @@ export function parseVoiceCommand(rawText) {
     reply: `I heard: "${text}". You can ask to navigate, call contacts, send SOS, or scan objects.`,
   };
 }
+

@@ -111,3 +111,4 @@ export function useAccessibility() {
   if (!ctx) throw new Error('useAccessibility must be used within AccessibilityProvider');
   return ctx;
 }
+

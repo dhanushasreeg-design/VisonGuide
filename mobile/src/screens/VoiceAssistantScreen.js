@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { parseVoiceCommand } from '../services/speechService';
@@ -15,6 +16,8 @@ import Header from '../components/Header';
 import BigButton from '../components/BigButton';
 
 const QUICK_ACTIONS = [
+  'call doctor',
+  'call 112',
   'navigate to hospital',
   'read contacts',
   'send sos',
@@ -69,6 +72,12 @@ export default function VoiceAssistantScreen({ onNavigate, onBack }) {
       if (res.type === 'navigate_screen' && res.screen) {
         setTimeout(() => {
           onNavigate(res.screen, res.params);
+        }, 1200);
+      } else if (res.type === 'call' && res.phone) {
+        setTimeout(() => {
+          Linking.openURL(`tel:${res.phone}`).catch((err) => {
+            console.warn('Could not launch dialer:', err);
+          });
         }, 1200);
       }
     }, 400);
@@ -306,3 +315,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
 });
+

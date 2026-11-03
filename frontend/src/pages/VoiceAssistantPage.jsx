@@ -1404,10 +1404,11 @@ export default function VoiceAssistantPage() {
 
         type = "call";
       } else {
+        callPerson = "primary contact";
         reply =
-          "Who would you like to call? For example, say call Mom.";
+          "Calling your emergency contact now.";
 
-        type = "call_no_name";
+        type = "call";
       }
     }
 
@@ -2282,114 +2283,120 @@ export default function VoiceAssistantPage() {
       return;
     }
 
+    // 1. Direct numeric/phone dialer check (e.g., "call 112", "call 911", "call 108", "call 9876543210")
+    const cleanDigits = (name || "").replace(/[^0-9+]/g, "");
+    if (cleanDigits.length >= 3) {
+      addMsg(
+        "assistant",
+        `📞 Calling ${cleanDigits}`,
+        "call"
+      );
+      speakThenFinish(
+        `Calling ${spellPhone(cleanDigits)}.`,
+        generation
+      );
+      setTimeout(() => {
+        if (generation !== genRef.current) return;
+        window.location.href = `tel:${cleanDigits}`;
+      }, 1500);
+      return;
+    }
+
+    // Standard emergency contacts fallback directory
+    const DEFAULT_CONTACTS = [
+      { name: "Emergency Services", relation: "Helpline", phone: "112" },
+      { name: "Doctor", relation: "Medical", phone: "+919876543210" },
+      { name: "Ambulance", relation: "Medical Emergency", phone: "108" },
+      { name: "Police", relation: "Police", phone: "112" },
+      { name: "Family Caregiver", relation: "Family", phone: "+919876512345" },
+    ];
+
     try {
-      const response =
-        await API.get("/emergency");
-
-      if (
-        generation !== genRef.current
-      ) {
-        return;
+      let contacts = [];
+      try {
+        const response = await API.get("/emergency");
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          contacts = response.data;
+        }
+      } catch (err) {
+        console.log("[VOICE] Emergency API fallback check:", err);
       }
 
-      const contacts =
-        Array.isArray(response.data)
-          ? response.data
-          : [];
-
+      // Check local storage if backend returned empty
       if (!contacts.length) {
-        speakThenFinish(
-          "You have no emergency contacts saved.",
-          generation
-        );
-
-        return;
+        try {
+          const local = localStorage.getItem("visionguide_emergency_contacts") || localStorage.getItem("emergency_contacts");
+          if (local) {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) contacts = parsed;
+          }
+        } catch (_) {}
       }
 
-      const query =
-        name.toLowerCase().trim();
+      const allContacts = [...contacts, ...DEFAULT_CONTACTS];
+      const query = (name || "").toLowerCase().trim();
 
-      const match =
-        contacts.find(
-          (contact) => {
-            const contactName =
-              contact.name
-                ?.toLowerCase()
-                .trim();
-
-            return (
-              contactName &&
-              (
-                contactName.includes(query) ||
-                query.includes(contactName)
-              )
-            );
-          }
+      // Find match
+      let match = allContacts.find((contact) => {
+        const contactName = (contact.name || "").toLowerCase().trim();
+        const contactRel = (contact.relation || "").toLowerCase().trim();
+        return (
+          contactName && (contactName.includes(query) || query.includes(contactName) || contactRel.includes(query) || query.includes(contactRel))
         );
+      });
 
-      if (match) {
-        const phone =
-          match.phone?.replace(
-            /\s+/g,
-            ""
-          );
-
-        addMsg(
-          "assistant",
-          `📞 Calling ${match.name} — ${match.phone}`,
-          "call"
-        );
-
-        speakThenFinish(
-          `Calling ${match.name}. Number: ${spellPhone(
-            match.phone
-          )}.`,
-          generation
-        );
-
-        setTimeout(() => {
-          if (
-            generation !==
-            genRef.current
-          ) {
-            return;
-          }
-
-          if (!phone) {
-            return;
-          }
-
-          window.location.href =
-            `tel:${phone}`;
-        }, 1800);
-      } else {
-        const names =
-          contacts
-            .map(
-              (contact) =>
-                contact.name
-            )
-            .filter(Boolean)
-            .join(", ");
-
-        speakThenFinish(
-          `Contact "${name}" not found. Your saved contacts are: ${names || "none"}.`,
-          generation
-        );
+      if (!match) {
+        if (/doctor|hospital|clinic|medic/i.test(query)) {
+          match = DEFAULT_CONTACTS[1];
+        } else if (/police|cop|patrol/i.test(query)) {
+          match = DEFAULT_CONTACTS[3];
+        } else if (/ambulance|paramedic/i.test(query)) {
+          match = DEFAULT_CONTACTS[2];
+        } else if (/family|caregiver|mom|mother|dad|father|sister|brother/i.test(query)) {
+          match = DEFAULT_CONTACTS[4];
+        } else {
+          // Default to first available contact
+          match = allContacts[0] || DEFAULT_CONTACTS[0];
+        }
       }
+
+      const phone = match.phone?.replace(/\s+/g, "");
+
+      addMsg(
+        "assistant",
+        `📞 Calling ${match.name} (${match.relation || "Emergency"}) — ${match.phone}`,
+        "call"
+      );
+
+      speakThenFinish(
+        `Calling ${match.name}. Number: ${spellPhone(match.phone)}.`,
+        generation
+      );
+
+      setTimeout(() => {
+        if (generation !== genRef.current) return;
+        if (!phone) return;
+        window.location.href = `tel:${phone}`;
+      }, 1500);
     } catch (error) {
       console.log(
-        "[VOICE] Call contact error:",
+        "[VOICE] Call contact fallback execution:",
         error
       );
 
-      if (
-        generation === genRef.current
-      ) {
+      if (generation === genRef.current) {
+        addMsg(
+          "assistant",
+          "📞 Calling Emergency Helpline — 112",
+          "call"
+        );
         speakThenFinish(
-          "Could not access contacts. Please try again.",
+          "Calling emergency helpline 112 now.",
           generation
         );
+        setTimeout(() => {
+          window.location.href = "tel:112";
+        }, 1500);
       }
     }
   }

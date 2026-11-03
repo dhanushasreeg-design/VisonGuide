@@ -62,3 +62,4 @@ export async function analyzeImageForObstacles(imageUri) {
     totalCount: results.length,
   };
 }
+

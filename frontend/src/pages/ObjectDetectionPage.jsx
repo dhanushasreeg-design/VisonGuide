@@ -686,13 +686,26 @@ export default function ObjectDetectionPage() {
   /* ── Camera: Start ── */
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+      } catch (e1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+          });
+        } catch (e2) {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+      }
       streamRef.current = stream;
       const v = videoRef.current;
-      v.srcObject = stream;
-      try { await v.play(); } catch {}
+      if (v) {
+        v.srcObject = stream;
+        try { await v.play(); } catch {}
+      }
       setCameraActive(true);
       lastSpokenRef.current = "";
       // Live camera never runs the accessibility detector — clear any stale
