@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Platform,
 } from 'react-native';
 import { useAccessibility, LANGUAGES } from '../context/AccessibilityContext';
 import { useAuth } from '../context/AuthContext';
@@ -291,3 +292,4 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 });
+
