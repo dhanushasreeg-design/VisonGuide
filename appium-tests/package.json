@@ -1,0 +1,30 @@
+{
+  "name": "visionguideai-appium-tests",
+  "version": "1.0.0",
+  "description": "Enterprise Appium Android Mobile E2E Test Automation Suite for VisionGuide AI",
+  "main": "run-all-appium-tests.js",
+  "scripts": {
+    "test": "node run-all-appium-tests.js",
+    "test:mobile": "node run-all-appium-tests.js",
+    "test:auth": "node run-all-appium-tests.js --suite 01",
+    "test:voice": "node run-all-appium-tests.js --suite 06",
+    "test:nav": "node run-all-appium-tests.js --suite 07",
+    "test:sos": "node run-all-appium-tests.js --suite 12"
+  },
+  "keywords": [
+    "appium",
+    "android",
+    "mobile-testing",
+    "uiautomator2",
+    "e2e",
+    "visionguideai",
+    "accessibility",
+    "excel-report"
+  ],
+  "author": "VisionGuide AI QA Engineering Team",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

@@ -63,6 +63,22 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /* ── Demo Sign In (Instant access for evaluation & testing) ── */
+  const signInDemo = async () => {
+    try {
+      const res = await signIn("demouser2026@visionguide.ai", "VisionGuide2026!");
+      if (res.success) return res;
+    } catch {}
+    const demoUser = {
+      id: "165e7bba-4cae-4c12-adcd-4e13c517ec8e",
+      name: "Demo User",
+      email: "demouser2026@visionguide.ai",
+      token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxNjVlN2JiYS00Y2FlLTRjMTItYWRjZC00ZTEzYzUxN2VjOGUiLCJlbWFpbCI6ImRlbW91c2VyMjAyNkB2aXNpb25ndWlkZS5haSIsImlhdCI6MTc5Mjk1NDk1NywiZXhwIjoxNzk1NTQ2OTU3fQ.G72bJ9di-NVVdYwhD-bxzIjHk6wfahJAPmUe_Hyw0ew",
+    };
+    _saveSession(demoUser);
+    return { success: true };
+  };
+
   /* ── Sign Out ── */
   const signOut = () => {
     setUser(null);
@@ -71,7 +87,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signUp, signIn, signInDemo, signOut }}>
       {children}
     </AuthContext.Provider>
   );

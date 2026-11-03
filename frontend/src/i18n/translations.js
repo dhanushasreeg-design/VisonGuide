@@ -3,8 +3,8 @@ export const T = {
   "en-US": {
     "zara.greeting":     "How can I help you?",
     "zara.listening":    "Listening",
-    "zara.not_heard":    "Sorry, I did not hear you clearly. Say Hey Zara to try again.",
-    "zara.timeout":      "No command heard. Say Hey Zara to try again.",
+    "zara.not_heard":    "Sorry, I did not hear you clearly. Tap the microphone to try again.",
+    "zara.timeout":      "No command heard. Tap the microphone to try again.",
     "zara.help":         "Available commands: navigate to a place, voice assistant, camera, detect objects, emergency contacts, SOS, articles, safety tips, locations, settings, stop reading, or sign out.",
     "zara.not_understood":"I heard you, but did not understand. Say help for available commands.",
     "zara.stopping":     "Stopping speech.",
@@ -56,8 +56,8 @@ export const T = {
   "ta-IN": {
     "zara.greeting":     "நான் உங்களுக்கு எப்படி உதவலாம்?",
     "zara.listening":    "கேட்கிறேன்",
-    "zara.not_heard":    "மன்னிக்கவும், உங்கள் குரல் சரியாக கேட்கவில்லை. மீண்டும் ஹே சாரா என்று சொல்லுங்கள்.",
-    "zara.timeout":      "கட்டளை எதுவும் கேட்கவில்லை. மீண்டும் ஹே சாரா என்று சொல்லுங்கள்.",
+    "zara.not_heard":    "மன்னிக்கவும், உங்கள் குரல் சரியாக கேட்கவில்லை. மீண்டும் மைக்ரோஃபோனைத் தொடவும்.",
+    "zara.timeout":      "கட்டளை எதுவும் கேட்கவில்லை. மீண்டும் மைக்ரோஃபோனைத் தொடவும்.",
     "zara.help":         "கட்டளைகள்: வழிசெலுத்தல், குரல் உதவியாளர், கேமரா, பொருள் கண்டறிதல், அவசர தொடர்பு, எஸ்ஓஎஸ், கட்டுரைகள், பாதுகாப்பு குறிப்புகள், அமைப்புகள், வாசிப்பை நிறுத்து.",
     "zara.not_understood":"புரியவில்லை. உதவிக்கு ஹெல்ப் என்று சொல்லுங்கள்.",
     "zara.stopping":     "வாசிப்பை நிறுத்துகிறேன்.",
@@ -109,8 +109,8 @@ export const T = {
   "hi-IN": {
     "zara.greeting":     "मैं आपकी कैसे मदद कर सकता हूं?",
     "zara.listening":    "सुन रहा हूं",
-    "zara.not_heard":    "माफ करें, आवाज़ साफ नहीं सुनाई दी। दोबारा हे ज़ारा कहें।",
-    "zara.timeout":      "कोई आदेश नहीं सुना। दोबारा हे ज़ारा कहें।",
+    "zara.not_heard":    "माफ करें, आवाज़ साफ नहीं सुनाई दी। दोबारा माइक पर टैप करें।",
+    "zara.timeout":      "कोई आदेश नहीं सुना। दोबारा माइक पर टैप करें।",
     "zara.help":         "उपलब्ध आदेश: नेविगेट करें, वॉइस असिस्टेंट, कैमरा, ऑब्जेक्ट, आपातकालीन संपर्क, SOS, लेख, सेटिंग्स, पढ़ना बंद करें।",
     "zara.not_understood":"समझ नहीं आया। मदद के लिए हेल्प कहें।",
     "zara.stopping":     "पढ़ना रोक रहा हूं।",
@@ -162,8 +162,8 @@ export const T = {
   "te-IN": {
     "zara.greeting":     "నేను మీకు ఎలా సహాయం చేయగలను?",
     "zara.listening":    "వింటున్నాను",
-    "zara.not_heard":    "క్షమించండి, మీ గొంతు స్పష్టంగా వినబడలేదు. మళ్ళీ హే జారా అని చెప్పండి.",
-    "zara.timeout":      "ఏ ఆదేశమూ వినబడలేదు. మళ్ళీ హే జారా అని చెప్పండి.",
+    "zara.not_heard":    "క్షమించండి, మీ గొంతు స్పష్టంగా వినబడలేదు. మళ్ళీ మైక్రోఫోన్‌ను నొక్కండి.",
+    "zara.timeout":      "ఏ ఆదేశమూ వినబడలేదు. మళ్ళీ మైక్రోఫోన్‌ను నొక్కండి.",
     "zara.help":         "ఆదేశాలు: నావిగేట్, వాయిస్ అసిస్టెంట్, కెమెరా, ఆబ్జెక్ట్, అత్యవసర పరిచయాలు, SOS, వ్యాసాలు, సెట్టింగ్లు, చదవడం ఆపు.",
     "zara.not_understood":"అర్థం కాలేదు. సహాయానికి హెల్ప్ అని చెప్పండి.",
     "zara.stopping":     "చదవడం ఆపుతున్నాను.",

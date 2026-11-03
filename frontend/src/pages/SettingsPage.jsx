@@ -13,6 +13,7 @@ const LANG_OPTIONS = [
 export default function SettingsPage() {
   const { settings, update, updateMany, toggleTheme, toggleAccessibility, speak } = useAccessibility();
   const isDark = settings.theme === "dark";
+  const bB = settings.bigButtons || settings.accessibilityMode;
 
   const [adminStats, setAdminStats] = useState(null);
   const [adminOpen,  setAdminOpen]  = useState(false);
@@ -87,24 +88,35 @@ export default function SettingsPage() {
         {/* ══════════════════════════════════
             ACCESSIBILITY DISPLAY MODE
         ══════════════════════════════════ */}
-        <Section title="♿ Accessibility Display Mode" color="#22c55e" C={C}>
-          <p style={{ color: C.sub, fontSize: "14px", marginBottom: "18px" }}>
+        <Section title="♿ Accessibility Display Mode" color="#22c55e" C={C} big={bB}>
+          <p style={{ color: C.sub, fontSize: bB ? "16px" : "14px", marginBottom: "18px" }}>
             Enable the master accessibility mode or customize individual accessibility features below.
           </p>
 
           {/* Master toggle */}
-          <div style={{ ...st.row, justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "16px 18px", background: settings.accessibilityMode ? "rgba(34,197,94,0.08)" : C.input, border: `1px solid ${settings.accessibilityMode ? "rgba(34,197,94,0.3)" : C.inBorder}`, borderRadius: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "28px" }}>♿</span>
+          <div style={{
+            ...st.row,
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "20px",
+            padding: bB ? "22px 24px" : "16px 18px",
+            background: settings.accessibilityMode ? "rgba(34,197,94,0.12)" : C.input,
+            border: `2px solid ${settings.accessibilityMode ? "#22c55e" : C.inBorder}`,
+            borderRadius: bB ? "18px" : "12px",
+            boxShadow: settings.accessibilityMode ? "0 0 20px rgba(34,197,94,0.25)" : "none",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: bB ? "18px" : "12px" }}>
+              <span style={{ fontSize: bB ? "42px" : "28px" }}>♿</span>
               <div>
-                <div style={{ color: C.text, fontWeight: 700, fontSize: "15px" }}>Enable Accessibility Mode</div>
-                <div style={{ color: C.sub, fontSize: "13px" }}>Activates large text + high contrast + big buttons + voice guidance</div>
+                <div style={{ color: C.text, fontWeight: 800, fontSize: bB ? "18px" : "15px" }}>Enable Accessibility Mode</div>
+                <div style={{ color: C.sub, fontSize: bB ? "15px" : "13px" }}>Activates large text + high contrast + big buttons + voice guidance</div>
               </div>
             </div>
             <Toggle
               on={settings.accessibilityMode}
               onToggle={toggleAccessibility}
               color="#22c55e"
+              big={bB}
             />
           </div>
 
@@ -119,8 +131,10 @@ export default function SettingsPage() {
                   key={m.key}
                   style={{
                     ...st.modeCard,
-                    background:   isOn ? "rgba(34,197,94,0.1)"   : C.input,
-                    border:       isOn ? "1px solid rgba(34,197,94,0.35)" : `1px solid ${C.inBorder}`,
+                    padding: bB ? "20px 18px" : "14px",
+                    borderRadius: bB ? "16px" : "12px",
+                    background:   isOn ? "rgba(34,197,94,0.12)"   : C.input,
+                    border:       isOn ? "2px solid #22c55e" : `1px solid ${C.inBorder}`,
                     color: C.text,
                   }}
                   onClick={() => {
@@ -130,10 +144,10 @@ export default function SettingsPage() {
                   }}
                   aria-pressed={isOn}
                 >
-                  <span style={{ fontSize: "24px" }}>{m.icon}</span>
-                  <span style={{ fontWeight: 700, fontSize: "13px" }}>{m.label}</span>
-                  <span style={{ fontSize: "11px", color: C.sub }}>{m.desc}</span>
-                  <span style={{ fontSize: "12px", color: isOn ? "#22c55e" : C.sub, fontWeight: 700 }}>
+                  <span style={{ fontSize: bB ? "36px" : "24px" }}>{m.icon}</span>
+                  <span style={{ fontWeight: 800, fontSize: bB ? "16px" : "13px" }}>{m.label}</span>
+                  <span style={{ fontSize: bB ? "13px" : "11px", color: C.sub, lineHeight: 1.4 }}>{m.desc}</span>
+                  <span style={{ fontSize: bB ? "15px" : "12px", color: isOn ? "#22c55e" : C.sub, fontWeight: 800, marginTop: "4px" }}>
                     {isOn ? "✅ ON" : "OFF"}
                   </span>
                 </button>
@@ -285,34 +299,41 @@ export default function SettingsPage() {
 }
 
 /* ── Reusable sub-components ── */
-function Section({ title, color, C, children }) {
+function Section({ title, color, C, big, children }) {
   return (
-    <div style={{ ...st.sectionWrap, borderColor: C.border, background: C.bg, marginBottom: "20px" }}>
-      <div style={{ ...st.sectionTitleBar, color: C.text, borderBottom: `1px solid ${C.border}`, background: C.sectionBg }}>
-        <span style={{ color, fontSize: "15px", fontWeight: 700 }}>{title}</span>
+    <div style={{ ...st.sectionWrap, borderColor: C.border, background: C.bg, marginBottom: "20px", borderRadius: big ? "20px" : "16px" }}>
+      <div style={{ ...st.sectionTitleBar, color: C.text, borderBottom: `1px solid ${C.border}`, background: C.sectionBg, padding: big ? "18px 24px" : "14px 20px" }}>
+        <span style={{ color, fontSize: big ? "18px" : "15px", fontWeight: 800 }}>{title}</span>
       </div>
-      <div style={{ padding: "20px" }}>{children}</div>
+      <div style={{ padding: big ? "26px 24px" : "20px" }}>{children}</div>
     </div>
   );
 }
 
-function Toggle({ on, onToggle, color }) {
+function Toggle({ on, onToggle, color, big }) {
   return (
     <button
       onClick={onToggle}
       aria-pressed={on}
       style={{
-        width: "52px", height: "28px", borderRadius: "14px",
-        background: on ? color : "rgba(255,255,255,0.12)",
+        width: big ? "72px" : "52px",
+        height: big ? "38px" : "28px",
+        borderRadius: big ? "20px" : "14px",
+        background: on ? color : "rgba(255,255,255,0.14)",
         border: "none", cursor: "pointer", position: "relative",
         transition: "background 0.2s", flexShrink: 0,
       }}
     >
       <div style={{
-        position: "absolute", top: "3px", left: on ? "26px" : "3px",
-        width: "22px", height: "22px", borderRadius: "50%",
+        position: "absolute",
+        top: big ? "4px" : "3px",
+        left: on ? (big ? "38px" : "26px") : (big ? "4px" : "3px"),
+        width: big ? "30px" : "22px",
+        height: big ? "30px" : "22px",
+        borderRadius: "50%",
         background: on ? "#000" : "#fff",
         transition: "left 0.2s",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
       }} />
     </button>
   );

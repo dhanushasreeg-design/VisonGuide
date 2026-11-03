@@ -1,6 +1,7 @@
-const express  = require("express");
-const supabase = require("../config/supabase");
-const router   = express.Router();
+const express    = require("express");
+const supabase   = require("../config/supabase");
+const localStore = require("../config/localStore");
+const router     = express.Router();
 
 /* ── keyword banks ── */
 /* "stop" alone is checked by exact/start match so "bus stop near me" doesn't trigger it */
@@ -78,6 +79,7 @@ const has = (t, keywords) => keywords.some(k => t.includes(k));
 
 /* ── GET /api/commands ── */
 router.get("/", async (req, res) => {
+  // 1. Try Supabase
   try {
     const { data, error } = await supabase
       .from("commands")
@@ -85,17 +87,29 @@ router.get("/", async (req, res) => {
       .eq("user_id", req.userId)
       .order("created_at", { ascending: false })
       .limit(100);
-    if (error) return res.status(500).json({ message: error.message });
-    res.json(data.map(item => ({
-      id:           item.id,
-      commandText:  item.command_text,
-      responseText: item.response_text,
-      commandType:  item.command_type,
-      createdAt:    item.created_at,
-    })));
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    if (!error && Array.isArray(data)) {
+      localStore.syncFromRemote("commands", data, req.userId);
+      return res.json(data.map(item => ({
+        id:           item.id,
+        commandText:  item.command_text,
+        responseText: item.response_text,
+        commandType:  item.command_type,
+        createdAt:    item.created_at,
+      })));
+    }
+  } catch (sbErr) {
+    console.warn("[commands] Supabase offline/paused — using local fallback:", sbErr.message);
   }
+
+  // 2. Fallback to local store
+  const localItems = localStore.find("commands", (c) => !req.userId || c.user_id === req.userId);
+  res.json(localItems.map(item => ({
+    id:           item.id,
+    commandText:  item.command_text || item.commandText,
+    responseText: item.response_text || item.responseText,
+    commandType:  item.command_type || item.commandType,
+    createdAt:    item.created_at || item.createdAt,
+  })));
 });
 
 /* ── POST /api/commands ── */
@@ -149,7 +163,17 @@ router.post("/", async (req, res) => {
       commandType  = "greeting";
     }
 
-    /* Save to Supabase in background — does not block the response */
+    // Mirror to local store
+    localStore.insert("commands", {
+      id: Date.now().toString(),
+      command_text:  commandText,
+      response_text: responseText,
+      command_type:  commandType,
+      user_id:       req.userId,
+      created_at:    new Date().toISOString(),
+    });
+
+    /* Save to Supabase in background */
     supabase.from("commands").insert([{
       command_text:  commandText,
       response_text: responseText,
@@ -157,7 +181,7 @@ router.post("/", async (req, res) => {
       user_id:       req.userId,
     }]).then(({ error }) => {
       if (error) console.error("[commands] log failed:", error.message);
-    });
+    }).catch(() => {});
 
     res.status(201).json({
       commandText,
@@ -172,19 +196,18 @@ router.post("/", async (req, res) => {
 
 /* ── DELETE /api/commands/:id ── */
 router.delete("/:id", async (req, res) => {
+  const id = req.params.id;
   try {
-    const { data, error } = await supabase
+    await supabase
       .from("commands")
       .delete()
-      .eq("id", req.params.id)
-      .eq("user_id", req.userId)
-      .select();
-    if (error) return res.status(500).json({ message: error.message });
-    if (!data?.length) return res.status(404).json({ message: "Command not found" });
-    res.json({ message: "Command deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+      .eq("id", id)
+      .eq("user_id", req.userId);
+  } catch {}
+
+  localStore.remove("commands", (c) => String(c.id) === String(id));
+  res.json({ message: "Command deleted successfully" });
 });
 
 module.exports = router;
+

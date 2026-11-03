@@ -6,6 +6,7 @@ import API from "../api";
 export default function SOSPage() {
   const { speak, settings } = useAccessibility();
   const isDark = settings.theme === "dark";
+  const bB = settings.bigButtons || settings.accessibilityMode;
   const C = {
     text:       isDark ? "#f9fafb"              : "#0f172a",
     sub:        isDark ? "#9ca3af"              : "#64748b",
@@ -99,27 +100,27 @@ export default function SOSPage() {
 
   const s = {
     grid:         { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" },
-    sosMainCard:  { textAlign: "center", padding: "36px 24px" },
-    sosCardTitle: { fontSize: "20px", fontWeight: 800, color: C.text, marginBottom: "8px" },
-    sosHint:      { color: C.sub, fontSize: "14px", marginBottom: "28px", lineHeight: 1.6 },
-    bigSosBtn:    { display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", width: "180px", height: "180px", borderRadius: "50%", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "white", border: "6px solid rgba(239,68,68,0.3)", cursor: "pointer", fontSize: "52px", fontWeight: 900, margin: "0 auto", fontFamily: "Inter,Arial,sans-serif", boxShadow: "0 0 40px rgba(239,68,68,0.3)", transition: "transform 0.2s" },
+    sosMainCard:  { textAlign: "center", padding: bB ? "44px 28px" : "36px 24px" },
+    sosCardTitle: { fontSize: bB ? "24px" : "20px", fontWeight: 800, color: C.text, marginBottom: "8px" },
+    sosHint:      { color: C.sub, fontSize: bB ? "16px" : "14px", marginBottom: "28px", lineHeight: 1.6 },
+    bigSosBtn:    { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px", width: bB ? "230px" : "180px", height: bB ? "230px" : "180px", borderRadius: "50%", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "white", border: "6px solid rgba(239,68,68,0.3)", cursor: "pointer", margin: "0 auto", fontFamily: "Inter,Arial,sans-serif", boxShadow: "0 0 50px rgba(239,68,68,0.4)", transition: "transform 0.2s" },
     countdownBox: { textAlign: "center", padding: "20px 0" },
-    countdownNum: { fontSize: "72px", fontWeight: 900, color: "#ef4444", lineHeight: 1 },
-    cancelBtn:    { background: C.cancelBg, color: C.text, border: `1px solid ${C.btnBorder}`, padding: "14px 32px", borderRadius: "12px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-    sectionTitle: { fontSize: "17px", fontWeight: 700, color: C.text, marginBottom: "20px" },
+    countdownNum: { fontSize: bB ? "90px" : "72px", fontWeight: 900, color: "#ef4444", lineHeight: 1 },
+    cancelBtn:    { background: C.cancelBg, color: C.text, border: `2px solid ${C.btnBorder}`, padding: bB ? "18px 38px" : "14px 32px", borderRadius: "14px", fontWeight: 800, fontSize: bB ? "18px" : "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    sectionTitle: { fontSize: bB ? "20px" : "17px", fontWeight: 800, color: C.text, marginBottom: "20px" },
     locationRow:  { display: "flex", gap: "10px", alignItems: "stretch" },
-    geoBtn:       { background: C.inputBg, border: `1px solid ${C.btnBorder}`, color: C.sub, padding: "14px 16px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif", whiteSpace: "nowrap", fontWeight: 600 },
-    submitSosBtn: { width: "100%", background: "#dc2626", color: "#fff", border: "none", padding: "14px", borderRadius: "12px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-    countBadge:   { background: "rgba(239,68,68,0.15)", color: "#f87171", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
-    alertCard:    { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderLeft: "4px solid #ef4444", borderRadius: "14px", padding: "18px", marginBottom: "14px" },
-    alertTop:     { display: "flex", gap: "14px", alignItems: "flex-start" },
-    alertIcon:    { fontSize: "24px", flexShrink: 0 },
+    geoBtn:       { background: C.inputBg, border: `2px solid ${C.btnBorder}`, color: C.sub, padding: bB ? "16px 20px" : "14px 16px", borderRadius: "12px", cursor: "pointer", fontSize: bB ? "16px" : "14px", fontFamily: "Inter,Arial,sans-serif", whiteSpace: "nowrap", fontWeight: 700 },
+    submitSosBtn: { width: "100%", background: "#dc2626", color: "#fff", border: "none", padding: bB ? "18px" : "14px", borderRadius: "14px", fontWeight: 800, fontSize: bB ? "18px" : "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    countBadge:   { background: "rgba(239,68,68,0.15)", color: "#f87171", padding: "4px 12px", borderRadius: "14px", fontSize: bB ? "16px" : "14px", fontWeight: 800 },
+    alertCard:    { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderLeft: "6px solid #ef4444", borderRadius: "16px", padding: bB ? "22px 20px" : "18px", marginBottom: "16px" },
+    alertTop:     { display: "flex", gap: "16px", alignItems: "flex-start" },
+    alertIcon:    { fontSize: bB ? "34px" : "24px", flexShrink: 0 },
     alertInfo:    { flex: 1 },
-    alertMsg:     { fontSize: "15px", fontWeight: 600, color: C.text, marginBottom: "6px" },
-    alertLocation:{ fontSize: "13px", color: C.sub, marginBottom: "8px" },
+    alertMsg:     { fontSize: bB ? "17px" : "15px", fontWeight: 700, color: C.text, marginBottom: "6px" },
+    alertLocation:{ fontSize: bB ? "15px" : "13px", color: C.sub, marginBottom: "8px" },
     alertMeta:    { display: "flex", gap: "12px", alignItems: "center" },
-    sentBadge:    { background: "rgba(239,68,68,0.1)", color: "#f87171", padding: "2px 12px", borderRadius: "10px", fontSize: "12px", fontWeight: 700 },
-    deleteBtn:    { background: "transparent", border: "none", color: C.dim, cursor: "pointer", fontSize: "18px", padding: "4px", flexShrink: 0 },
+    sentBadge:    { background: "rgba(239,68,68,0.1)", color: "#f87171", padding: "3px 14px", borderRadius: "10px", fontSize: bB ? "14px" : "12px", fontWeight: 700 },
+    deleteBtn:    { background: "transparent", border: "none", color: C.dim, cursor: "pointer", fontSize: bB ? "22px" : "18px", padding: "4px", flexShrink: 0 },
   };
 
   return (
@@ -149,7 +150,10 @@ export default function SOSPage() {
               ) : (
                 <button onClick={triggerCountdown} disabled={sending} style={s.bigSosBtn} className="pulse"
                   aria-label="Send SOS emergency alert">
-                  🚨<span>SEND SOS ALERT</span>
+                  <span style={{ fontSize: bB ? "60px" : "44px", lineHeight: 1 }}>🚨</span>
+                  <span style={{ fontSize: bB ? "18px" : "14px", fontWeight: 900, letterSpacing: "0.06em", lineHeight: 1.2 }}>
+                    SEND SOS ALERT
+                  </span>
                 </button>
               )}
             </div>

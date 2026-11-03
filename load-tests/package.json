@@ -1,0 +1,26 @@
+{
+  "name": "visionguideai-load-tests",
+  "version": "1.0.0",
+  "description": "Baseline and Load Testing Suite for VisionGuide AI with 100 Virtual Users and Excel Analysis Report",
+  "main": "run-all-load-tests.js",
+  "scripts": {
+    "test": "node run-all-load-tests.js",
+    "load": "node run-all-load-tests.js",
+    "load:baseline": "node run-all-load-tests.js"
+  },
+  "keywords": [
+    "load-testing",
+    "performance",
+    "baseline-testing",
+    "concurrent-users",
+    "rps",
+    "latency",
+    "excel-report",
+    "visionguideai"
+  ],
+  "author": "VisionGuide AI QA Performance Engineering Team",
+  "license": "ISC",
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

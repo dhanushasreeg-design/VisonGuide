@@ -212,9 +212,143 @@ html[data-theme="light"][data-contrast="high"] {
 }
 
 /* ═══════════════════════════════════════════════════
-   BIG BUTTONS (ACCESSIBILITY)
+   BIG BUTTONS & ACCESSIBILITY MODE (BIG ICONS & HIGH USABILITY)
 ═══════════════════════════════════════════════════ */
-html[data-bigbtns="1"] .btn { min-height: 54px !important; font-size: 17px !important; border-radius: 14px !important; }
+html[data-access="1"],
+html[data-font="large"] {
+  font-size: 19px !important;
+}
+
+/* Master Accessibility Mode: Enlarge all icons, interactive controls, and containers */
+html[data-access="1"] .btn,
+html[data-bigbtns="1"] .btn {
+  min-height: 64px !important;
+  font-size: 19px !important;
+  font-weight: 800 !important;
+  padding: 18px 32px !important;
+  border-radius: 18px !important;
+  gap: 14px !important;
+}
+html[data-access="1"] .btn-sm,
+html[data-bigbtns="1"] .btn-sm {
+  min-height: 52px !important;
+  font-size: 17px !important;
+  padding: 14px 22px !important;
+}
+html[data-access="1"] .btn-lg,
+html[data-bigbtns="1"] .btn-lg {
+  min-height: 76px !important;
+  font-size: 24px !important;
+  padding: 22px 38px !important;
+}
+
+/* Buttons across all views when accessibility is enabled */
+html[data-access="1"] button:not([data-fab]):not(.skip-link),
+html[data-bigbtns="1"] button:not([data-fab]):not(.skip-link) {
+  min-height: 50px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Enlarge all icons (SVG, emoji, font icons) across all components */
+html[data-access="1"] .icon,
+html[data-bigbtns="1"] .icon,
+html[data-access="1"] [class*="icon"]:not(.topbar-lang):not(.logoIcon),
+html[data-bigbtns="1"] [class*="icon"]:not(.topbar-lang):not(.logoIcon),
+html[data-access="1"] .stepIcon,
+html[data-bigbtns="1"] .stepIcon {
+  font-size: 32px !important;
+}
+
+html[data-access="1"] svg,
+html[data-bigbtns="1"] svg {
+  min-width: 28px !important;
+  min-height: 28px !important;
+}
+
+/* Empty state and hero icons */
+html[data-access="1"] .empty-state .icon,
+html[data-bigbtns="1"] .empty-state .icon {
+  font-size: 60px !important;
+}
+
+/* Inputs, Textareas, Selects */
+html[data-access="1"] input,
+html[data-access="1"] textarea,
+html[data-access="1"] select,
+html[data-bigbtns="1"] input,
+html[data-bigbtns="1"] textarea,
+html[data-bigbtns="1"] select {
+  font-size: 19px !important;
+  min-height: 58px !important;
+  padding: 16px 20px !important;
+  border-width: 2px !important;
+  border-radius: 14px !important;
+}
+html[data-access="1"] .form-group label,
+html[data-bigbtns="1"] .form-group label {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  margin-bottom: 10px !important;
+  letter-spacing: 0.08em;
+}
+
+/* Focus ring for accessibility */
+html[data-access="1"] button:focus-visible,
+html[data-access="1"] a:focus-visible,
+html[data-access="1"] input:focus-visible,
+html[data-access="1"] select:focus-visible {
+  outline: 3px solid #22c55e !important;
+  outline-offset: 3px !important;
+}
+
+/* Big cards across all pages */
+html[data-access="1"] .card,
+html[data-bigbtns="1"] .card {
+  padding: 32px 28px !important;
+  border-width: 2px !important;
+  border-radius: 20px !important;
+}
+
+/* Page headers */
+html[data-access="1"] .page-header h1 {
+  font-size: 40px !important;
+  letter-spacing: -0.5px;
+  margin-bottom: 14px !important;
+}
+html[data-access="1"] .page-header p {
+  font-size: 20px !important;
+  line-height: 1.5;
+}
+
+/* Alerts & Badges */
+html[data-access="1"] .alert,
+html[data-bigbtns="1"] .alert {
+  font-size: 18px !important;
+  padding: 20px 24px !important;
+  border-width: 2px !important;
+  border-radius: 16px !important;
+}
+html[data-access="1"] .pill,
+html[data-bigbtns="1"] .pill {
+  font-size: 16px !important;
+  padding: 10px 20px !important;
+  border-width: 2px !important;
+}
+
+/* Layout Grids */
+html[data-access="1"] .stats-grid,
+html[data-bigbtns="1"] .stats-grid {
+  gap: 16px !important;
+}
+html[data-access="1"] .links-grid,
+html[data-bigbtns="1"] .links-grid {
+  gap: 20px !important;
+}
+html[data-access="1"] .nearby-grid,
+html[data-bigbtns="1"] .nearby-grid {
+  gap: 16px !important;
+}
 
 /* ═══════════════════════════════════════════════════
    EXTRA ANIMATIONS

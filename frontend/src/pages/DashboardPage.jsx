@@ -42,6 +42,7 @@ const nearbyPlaces = [
 export default function DashboardPage() {
   const { user } = useAuth();
   const { settings, speak } = useAccessibility();
+  const bB = settings.bigButtons || settings.accessibilityMode;
   const [stats, setStats]     = useState({ contacts: 0, articles: 0, locations: 0, commands: 0, sos: 0 });
   const [loading, setLoading] = useState(true);
   const [greeting, setGreeting] = useState("Hello");
@@ -125,40 +126,55 @@ export default function DashboardPage() {
       <div className="fade-in">
 
         {/* ── Welcome Banner ── */}
-        <div className="welcome-banner" style={{ ...st.welcome, background: C.welcomeBg, border: `1px solid ${C.welcomeBorder}` }}>
+        <div className="welcome-banner" style={{
+          ...st.welcome,
+          background: C.welcomeBg,
+          border: `${bB ? "2px" : "1px"} solid ${C.welcomeBorder}`,
+          padding: bB ? "32px 34px" : "26px 30px",
+        }}>
           <div>
-            <h1 className="welcome-title" style={{ ...st.welcomeTitle, color: C.sectionTitle }}>
+            <h1 className="welcome-title" style={{ ...st.welcomeTitle, fontSize: bB ? "32px" : "26px", color: C.sectionTitle }}>
               {greeting}, <span style={{ color: "#22c55e" }}>{user?.name}</span> 👋
             </h1>
-            <p style={{ ...st.welcomeSub, color: C.subtitleColor }}>
+            <p style={{ ...st.welcomeSub, fontSize: bB ? "17px" : "14px", color: C.subtitleColor }}>
               Your VisionGuide AI dashboard — all features accessible by voice or click.
             </p>
           </div>
-          <Link to="/dashboard/voice" className="voice-btn" style={st.voiceBtn}>
-            <span style={{ fontSize: "22px" }}>🎤</span>
+          <Link to="/dashboard/voice" className="voice-btn" style={{
+            ...st.voiceBtn,
+            fontSize: bB ? "17px" : "14px",
+            padding: bB ? "16px 26px" : "13px 22px",
+            borderRadius: bB ? "16px" : "12px",
+          }}>
+            <span style={{ fontSize: bB ? "28px" : "22px" }}>🎤</span>
             Start Voice Assistant
           </Link>
         </div>
 
         {/* ── Smart Dashboard Stats (5 cards) ── */}
-        <h2 style={{ ...st.sectionTitle, color: C.sectionTitle }}>📊 Smart Dashboard</h2>
+        <h2 style={{ ...st.sectionTitle, fontSize: bB ? "24px" : "18px", color: C.sectionTitle }}>📊 Smart Dashboard</h2>
         <div className="stats-grid">
           {statCards.map(card => (
-            <div key={card.label} style={{ ...st.statCard, background: C.statBg, border: `1px solid ${C.statBorder}` }}>
-              <div style={{ fontSize: "26px", marginBottom: "8px" }}>{card.icon}</div>
-              <div style={{ ...st.statVal, color: card.color }}>{loading ? "—" : card.value}</div>
-              <div style={{ ...st.statLabel, color: C.statLabel }}>{card.label}</div>
+            <div key={card.label} style={{
+              ...st.statCard,
+              background: C.statBg,
+              border: `${bB ? "2px" : "1px"} solid ${C.statBorder}`,
+              padding: bB ? "26px 18px" : "18px 14px",
+            }}>
+              <div style={{ fontSize: bB ? "46px" : "26px", marginBottom: "8px" }}>{card.icon}</div>
+              <div style={{ ...st.statVal, fontSize: bB ? "42px" : "32px", color: card.color }}>{loading ? "—" : card.value}</div>
+              <div style={{ ...st.statLabel, fontSize: bB ? "16px" : "12px", fontWeight: 700, color: C.statLabel }}>{card.label}</div>
             </div>
           ))}
         </div>
 
         {/* ── Voice Command Suggestions ── */}
-        <div style={{ ...st.suggBox, background: C.suggBg, border: `1px solid ${C.suggBorder}` }}>
+        <div style={{ ...st.suggBox, background: C.suggBg, border: `${bB ? "2px" : "1px"} solid ${C.suggBorder}`, padding: bB ? "24px" : "18px" }}>
           <div style={st.suggHeader}>
-            <span style={{ fontSize: "22px" }}>💬</span>
+            <span style={{ fontSize: bB ? "30px" : "22px" }}>💬</span>
             <div>
-              <strong style={{ color: "#facc15", fontSize: "15px" }}>Voice Command Suggestions</strong>
-              <p style={{ color: C.subtitleColor, fontSize: "13px", marginTop: "2px" }}>
+              <strong style={{ color: "#facc15", fontSize: bB ? "18px" : "15px" }}>Voice Command Suggestions</strong>
+              <p style={{ color: C.subtitleColor, fontSize: bB ? "15px" : "13px", marginTop: "4px" }}>
                 Tap a chip to hear it spoken, or say any of these in the Voice Assistant
               </p>
             </div>
@@ -167,36 +183,53 @@ export default function DashboardPage() {
             {voiceSuggestions.map(s => (
               <button
                 key={s}
-                style={{ ...st.chip, background: C.chipBg, border: `1px solid ${C.chipBorder}`, color: C.chipColor }}
+                style={{
+                  ...st.chip,
+                  background: C.chipBg,
+                  border: `${bB ? "2px" : "1px"} solid ${C.chipBorder}`,
+                  color: C.chipColor,
+                  fontSize: bB ? "16px" : "13px",
+                  padding: bB ? "12px 24px" : "7px 14px",
+                  minHeight: bB ? "52px" : "auto",
+                  borderRadius: bB ? "16px" : "20px",
+                  fontWeight: bB ? 700 : 500,
+                }}
                 onClick={() => trySpeak(s)}
                 title={`Click to hear: "${s}"`}
               >
-                🎤 {s}
+                <span style={{ fontSize: bB ? "20px" : "15px", marginRight: "6px" }}>🎤</span>{s}
               </button>
             ))}
           </div>
         </div>
 
         {/* ── Nearby Place Finder ── */}
-        <h2 style={{ ...st.sectionTitle, color: C.sectionTitle }}>🗺️ Find Nearby Places</h2>
+        <h2 style={{ ...st.sectionTitle, fontSize: bB ? "24px" : "18px", color: C.sectionTitle }}>🗺️ Find Nearby Places</h2>
         <div className="nearby-grid">
           {nearbyPlaces.map(p => (
             <button
               key={p.query}
-              style={{ ...st.nearbyBtn, background: C.nearbyBg, border: `1px solid ${C.nearbyBorder}` }}
+              style={{
+                ...st.nearbyBtn,
+                background: C.nearbyBg,
+                border: `${bB ? "2px" : "1px"} solid ${C.nearbyBorder}`,
+                padding: bB ? "26px 18px" : "20px 12px",
+                minHeight: bB ? "124px" : "auto",
+                borderRadius: bB ? "18px" : "14px",
+              }}
               onClick={() => { openNearby(p.query); speak(`Opening Google Maps for ${p.label} near you.`); }}
               aria-label={`Find ${p.label} near me. Opens Google Maps.`}
               title={`Find ${p.label} near me`}
             >
-              <span style={{ fontSize: "28px" }}>{p.icon}</span>
-              <span style={{ ...st.nearbyLabel, color: C.sectionTitle }}>Find {p.label}</span>
-              <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: 600 }}>Near Me →</span>
+              <span style={{ fontSize: bB ? "50px" : "28px", marginBottom: bB ? "6px" : "0" }}>{p.icon}</span>
+              <span style={{ ...st.nearbyLabel, fontSize: bB ? "19px" : "14px", fontWeight: 800, color: C.sectionTitle }}>Find {p.label}</span>
+              <span style={{ fontSize: bB ? "15px" : "11px", color: "#22c55e", fontWeight: 700 }}>Near Me →</span>
             </button>
           ))}
         </div>
 
         {/* ── Quick Access cards ── */}
-        <h2 style={{ ...st.sectionTitle, color: C.sectionTitle }}>⚡ Quick Access</h2>
+        <h2 style={{ ...st.sectionTitle, fontSize: bB ? "24px" : "18px", color: C.sectionTitle }}>⚡ Quick Access</h2>
         <div className="links-grid">
           {quickLinks.map(item => (
             <Link
@@ -204,12 +237,18 @@ export default function DashboardPage() {
               to={item.path}
               aria-label={`${item.label}. ${item.desc}`}
               title={item.label}
-              style={{ ...st.linkCard, background: item.bg, border: `1px solid ${item.color}22` }}
+              style={{
+                ...st.linkCard,
+                background: item.bg,
+                border: `${bB ? "2px" : "1px"} solid ${item.color}45`,
+                padding: bB ? "28px 24px" : "18px",
+                borderRadius: bB ? "18px" : "14px",
+              }}
             >
-              <div style={{ fontSize: "30px", marginBottom: "8px" }}>{item.icon}</div>
-              <div style={{ ...st.linkLabel, color: C.linkLabel }}>{item.label}</div>
-              <div style={{ ...st.linkDesc, color: C.linkDesc }}>{item.desc}</div>
-              <div style={{ ...st.linkArrow, color: item.color }}>→</div>
+              <div style={{ fontSize: bB ? "52px" : "30px", marginBottom: bB ? "12px" : "8px" }}>{item.icon}</div>
+              <div style={{ ...st.linkLabel, fontSize: bB ? "20px" : "14px", fontWeight: 800, color: C.linkLabel }}>{item.label}</div>
+              <div style={{ ...st.linkDesc, fontSize: bB ? "15px" : "12px", color: C.linkDesc, lineHeight: 1.5 }}>{item.desc}</div>
+              <div style={{ ...st.linkArrow, fontSize: bB ? "26px" : "16px", color: item.color, fontWeight: 900 }}>→</div>
             </Link>
           ))}
         </div>

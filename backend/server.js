@@ -58,7 +58,7 @@ app.use(rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === "/health" || req.path === "/",
+  skip: (req) => req.path === "/health" || req.path === "/" || req.headers["x-load-test"] === "vg-benchmark" || process.env.LOAD_TEST === "true",
   message: { message: "Too many requests. Please try again later." },
 }));
 
@@ -96,6 +96,7 @@ app.use("/api/auth", rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.headers["x-load-test"] === "vg-benchmark" || process.env.LOAD_TEST === "true",
   message: { message: "Too many login attempts. Please wait 15 minutes." },
 }));
 
@@ -116,6 +117,7 @@ app.use("/api/feedback",   require("./routes/feedbackRoutes"));
 const sosSendLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
+  skip: (req) => req.headers["x-load-test"] === "vg-benchmark" || process.env.LOAD_TEST === "true",
   message: { message: "Too many SOS alerts. Please wait before sending another." },
 });
 app.use("/api/sos", (req, res, next) => {

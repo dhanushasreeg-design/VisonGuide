@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function SignInPage() {
-  const { signIn } = useAuth();
+  const { signIn, signInDemo } = useAuth();
   const navigate   = useNavigate();
   const [form,    setForm]    = useState({ email: "", password: "" });
   const [error,   setError]   = useState("");
@@ -90,6 +90,37 @@ export default function SignInPage() {
               {loading ? "Signing in…" : "Sign In →"}
             </button>
           </form>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "18px 0" }}>
+            <hr style={{ flex: 1, border: "none", borderTop: "1px solid #1f2937" }} />
+            <span style={{ color: "#6b7280", fontSize: "13px" }}>or</span>
+            <hr style={{ flex: 1, border: "none", borderTop: "1px solid #1f2937" }} />
+          </div>
+
+          <button
+            type="button"
+            style={{
+              width: "100%",
+              background: "rgba(34,197,94,0.1)",
+              border: "1.5px solid rgba(34,197,94,0.35)",
+              color: "#4ade80",
+              padding: "14px",
+              borderRadius: "12px",
+              fontSize: "15px",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              marginBottom: "20px",
+              transition: "all 0.2s",
+            }}
+            onClick={async () => { await signInDemo(); navigate("/dashboard"); }}
+          >
+            ⚡ Try Demo Account
+          </button>
 
           <p style={s.bottomText}>
             Don't have an account?{" "}

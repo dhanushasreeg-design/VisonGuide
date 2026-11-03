@@ -45,19 +45,6 @@ const LANG_OPTIONS = [
   { code: "te-IN", native: "తెలుగు" },
 ];
 
-/* Wake phrase detection — covers multiple languages / phonetic variants */
-const isWakePhrase = (text) => {
-  const t = text.toLowerCase().trim();
-  return (
-    t.includes("hey zara") || t.includes("hey sara") || t.includes("hey zero") ||
-    t.includes("hi zara")  || t.includes("ok zara")  || t.includes("okay zara") ||
-    t.includes("a zara")   || t.includes("ey zara")  || t.includes("zara help") ||
-    t.includes("ஹே சாரா") || t.includes("ஹே ஜாரா")  ||
-    t.includes("हे ज़ारा") || t.includes("हे सारा")  || t.includes("ज़ारा") ||
-    t.includes("జారా")     || t.includes("సారా")
-  );
-};
-
 /* Contains "stop reading" / stop variants in any language */
 const isStopCmd = (t) =>
   t.includes("stop") || t.includes("நிறுத்து") || t.includes("रुको") ||
@@ -72,16 +59,13 @@ export default function DashboardLayout({ children }) {
   const [mobileOpen,   setMobileOpen]   = useState(false);
   const [isMobile,     setIsMobile]     = useState(() => window.innerWidth < 768);
   const [listening,    setListening]    = useState(false);
-  const [zaraActive,   setZaraActive]   = useState(false);
   const [announcement, setAnnouncement] = useState("");
 
   /* Stable refs so effects don't re-run on every render */
   const langRef      = useRef(settings.language);
   const speedRef     = useRef(settings.voiceSpeed);
-  const wakeRef      = useRef(null);     // wake word recognition instance
   const cmdRecRef    = useRef(null);     // command recognition instance
-  const wakeRunning  = useRef(false);    // mutex: only one wake instance at a time
-  const cmdMode      = useRef(false);    // true = waiting for user command
+  const cmdMode      = useRef(false);
   const mountedRef   = useRef(true);
   const lastTouchRef = useRef({ el: null, ts: 0 }); // explore-by-touch state
 
@@ -201,7 +185,7 @@ export default function DashboardLayout({ children }) {
         ?.slice(0, 80) || "";
 
     const onTouchStart = (e) => {
-      if (cmdMode.current || e.touches.length > 1) return;
+      if (listening || e.touches.length > 1) return;
       if (window._vgProcessing) return;      // VoiceAssistantPage is speaking — skip
       const el = e.target.closest("button, a[href], [role='button']");
       if (!el || el.closest("[data-fab]")) return;
@@ -245,246 +229,20 @@ export default function DashboardLayout({ children }) {
     return () => document.removeEventListener("touchstart", onTouchStart);
   }, []); // no deps — uses refs only
 
-  /* ════════════════════════════════════════════════════
-     HEY ZARA — Wake word + command system
-     Fixed issues:
-     1. Uses utterance.onend so TTS finishes BEFORE command mic opens
-     2. wakeRunning mutex prevents multiple concurrent instances
-     3. Restart only on onend (covers all error paths)
-     4. 7-second command timeout
-  ════════════════════════════════════════════════════ */
-  const sayT = useCallback((key) => {
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume();
-    const text = translate(langRef.current, key);
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = langRef.current; u.rate = speedRef.current ?? 0.95; u.volume = 1;
-    return u; // caller can attach onend
-  }, []);
-
-  const resetZara = useCallback(() => {
-    cmdMode.current  = false;
-    wakeRunning.current = false;
-    if (mountedRef.current) { setZaraActive(false); setListening(false); }
-  }, []);
-
-  const startWake = useCallback(() => {
-    if (!mountedRef.current || cmdMode.current || wakeRunning.current || location.pathname === "/dashboard/voice") return;
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-
-    wakeRunning.current = true;
-    let triggered = false;
-
-    try {
-      const rec = new SR();
-      rec.lang = langRef.current;
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.maxAlternatives = 3;
-      wakeRef.current = rec;
-
-      rec.onresult = (ev) => {
-        if (triggered) return;
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          for (let j = 0; j < ev.results[i].length; j++) {
-            const txt = ev.results[i][j].transcript;
-            if (isWakePhrase(txt)) {
-              triggered = true;
-              try { rec.stop(); } catch {}
-              handleWakeDetected();
-              return;
-            }
-          }
-        }
-      };
-
-      rec.onend = () => {
-        wakeRef.current = null;
-        wakeRunning.current = false;
-        // Restart after brief pause (unless command mode or unmounted)
-        if (mountedRef.current && !cmdMode.current) {
-          setTimeout(startWake, 400);
-        }
-      };
-
-      rec.onerror = (ev) => {
-        if (ev.error === "aborted" || ev.error === "no-speech") return; // onend handles
-        wakeRunning.current = false;
-        wakeRef.current = null;
-        // Network errors: back off 60 s to avoid Chrome spamming its "needs internet" notification
-        const delay = ev.error === "network" ? 60000 : 1200;
-        if (mountedRef.current && !cmdMode.current) setTimeout(startWake, delay);
-      };
-
-      rec.start();
-    } catch {
-      wakeRunning.current = false;
-      if (mountedRef.current) setTimeout(startWake, 1500);
-    }
-  }, []); // eslint-disable-line
-
-  const handleWakeDetected = useCallback(() => {
-    cmdMode.current = true;
-    if (mountedRef.current) setZaraActive(true);
-
-    // Speak greeting — start command mic ONLY after speech actually ends
-    window.speechSynthesis.cancel();
-    const greetingText = translate(langRef.current, "zara.greeting");
-    const u = new SpeechSynthesisUtterance(greetingText);
-    u.lang = langRef.current; u.rate = 0.95; u.volume = 1;
-
-    let cmdStarted = false;
-    const beginCmd = () => {
-      if (!cmdStarted) { cmdStarted = true; startCommandListen(); }
-    };
-
-    u.onend   = beginCmd;
-    u.onerror = beginCmd;
-    // Safety fallback: if onend doesn't fire within reasonable time
-    setTimeout(beginCmd, Math.max(2200, greetingText.length * 75));
-
-    window.speechSynthesis.speak(u);
-  }, []); // eslint-disable-line
-
-  const startCommandListen = useCallback(() => {
-    if (!mountedRef.current) return;
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { resetZara(); setTimeout(startWake, 500); return; }
-
-    if (mountedRef.current) setListening(true);
-
-    let cmdHandled = false;
-    const rec = new SR();
-    rec.lang = langRef.current;
-    rec.continuous = false;
-    rec.interimResults = false;
-    rec.maxAlternatives = 2;
-    cmdRecRef.current = rec;
-
-    // 7-second timeout — if user doesn't speak, abort
-    const timeout = setTimeout(() => {
-      if (!cmdHandled) {
-        cmdHandled = true;
-        try { rec.stop(); } catch {}
-        resetZara();
-        const u = sayT("zara.timeout");
-        window.speechSynthesis.speak(u);
-        u.onend = () => setTimeout(startWake, 500);
-        setTimeout(startWake, 4000); // fallback
-      }
-    }, 7000);
-
-    rec.onresult = (ev) => {
-      if (cmdHandled) return;
-      cmdHandled = true;
-      clearTimeout(timeout);
-      const cmd = ev.results[0][0].transcript.toLowerCase().trim();
-      resetZara();
-      runCmd(cmd);
-      setTimeout(startWake, 1200);
-    };
-
-    rec.onerror = (ev) => {
-      if (cmdHandled) return;
-      if (ev.error === "no-speech") return; // wait for onend
-      cmdHandled = true;
-      clearTimeout(timeout);
-    };
-
-    rec.onend = () => {
-      clearTimeout(timeout);
-      if (!cmdHandled) {
-        cmdHandled = true;
-        resetZara();
-        setTimeout(startWake, 500);
-      }
-    };
-
-    try {
-      rec.start();
-    } catch {
-      clearTimeout(timeout);
-      resetZara();
-      setTimeout(startWake, 1000);
-    }
-  }, []); // eslint-disable-line
-
-  /* ─── Mic permission + Zara boot ─── */
+  /* ─── Voice lifecycle & safe no-ops for child pages ─── */
   useEffect(() => {
     mountedRef.current = true;
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    const tryStartWake = () => {
-      if (mountedRef.current && !cmdMode.current && !wakeRunning.current) startWake();
-    };
-
-    const requestMicAndStart = async () => {
-      try {
-        // Explicitly request mic — shows the browser permission prompt clearly
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        stream.getTracks().forEach(t => t.stop()); // release immediately, SR will reopen it
-        setTimeout(tryStartWake, 200);
-      } catch {
-        // Mic denied — voice features won't work, that's fine
-      }
-    };
-
-    if (!SR) return;
-
-    // Check existing permission state (Chrome supports this)
-    navigator.permissions?.query({ name: "microphone" })
-      .then((perm) => {
-        if (perm.state === "granted") {
-          setTimeout(tryStartWake, 500);
-          // Watch for permission changes (e.g. user revokes later)
-          perm.onchange = () => {
-            if (perm.state !== "granted") { try { wakeRef.current?.stop(); } catch {} }
-          };
-        } else if (perm.state === "prompt") {
-          // Request on first click so the prompt appears in context
-          document.addEventListener("pointerdown", requestMicAndStart, { once: true });
-          document.addEventListener("click",       requestMicAndStart, { once: true });
-        }
-        // "denied" → do nothing
-      })
-      .catch(() => {
-        // Browser doesn't support permissions API — just request on first interaction
-        document.addEventListener("pointerdown", requestMicAndStart, { once: true });
-        document.addEventListener("click",       requestMicAndStart, { once: true });
-      });
-
-    // Watchdog: every 8 s restart wake if it silently died
-    const watchdog = setInterval(tryStartWake, 8000);
-
-    // Global pause/resume — _vgPauseWake returns a Promise so caller can await full mic release
-    window._vgPauseWake = () => new Promise(resolve => {
-      wakeRunning.current = false;
-      cmdMode.current = true; // block wake restart while VA page is active
-      const ref = wakeRef.current;
-      if (!ref) { resolve(); return; }
-      const prev = ref.onend;
-      ref.onend = (...args) => {
-        wakeRef.current = null;
-        if (prev) try { prev(...args); } catch {}
-        setTimeout(resolve, 100); // brief gap so OS releases mic
-      };
-      try { ref.stop(); } catch { wakeRef.current = null; resolve(); }
-    });
-    window._vgResumeWake = () => { cmdMode.current = false; setTimeout(tryStartWake, 700); };
+    window._vgPauseWake = () => Promise.resolve();
+    window._vgResumeWake = () => {};
 
     return () => {
       mountedRef.current = false;
-      clearInterval(watchdog);
       delete window._vgPauseWake;
       delete window._vgResumeWake;
-      document.removeEventListener("pointerdown", requestMicAndStart);
-      document.removeEventListener("click",       requestMicAndStart);
-      try { wakeRef.current?.stop(); }   catch {}
       try { cmdRecRef.current?.stop(); } catch {}
       window.speechSynthesis.cancel();
     };
-  }, []); // eslint-disable-line
+  }, []);
 
   /* ─── Extract destination from voice command ─── */
   const extractDest = (cmd) =>
@@ -578,16 +336,11 @@ export default function DashboardLayout({ children }) {
     if (listening) {
       try { cmdRecRef.current?.stop(); } catch {}
       setListening(false);
-      cmdMode.current = false;
-      setTimeout(() => { if (mountedRef.current) startWake(); }, 600);
       return;
     }
 
-    // Kill everything before starting
+    // Kill speech before starting
     window.speechSynthesis.cancel();
-    try { wakeRef.current?.stop(); } catch {}
-    wakeRunning.current = false;
-    cmdMode.current     = true; // block watchdog from restarting wake while we listen
 
     const rec = new SR();
     rec.lang            = langRef.current;
@@ -596,11 +349,7 @@ export default function DashboardLayout({ children }) {
     rec.maxAlternatives = 3;
     cmdRecRef.current   = rec;
 
-    // ── Start recognition immediately — no TTS before mic opens ──
-    // Speaking "Listening" into an open mic causes it to recognise its own
-    // voice as a command ("listening" → "not understood" → loop).
     try { rec.start(); } catch (err) {
-      cmdMode.current = false;
       setListening(false);
       // If permission denied, request it properly
       navigator.mediaDevices.getUserMedia({ audio: true, video: false })
@@ -616,19 +365,16 @@ export default function DashboardLayout({ children }) {
     setListening(true); // shows the pulsing mic UI
 
     let handled = false;
-    const done = (restartWake = true) => {
+    const done = () => {
       if (handled) return;
       handled = true;
-      cmdMode.current = false;
       setListening(false);
-      if (restartWake) setTimeout(() => { if (mountedRef.current && !wakeRunning.current) startWake(); }, 600);
     };
 
     rec.onresult = (e) => {
       const cmd = e.results[0][0].transcript.toLowerCase().trim();
-      done(false); // don't restart wake yet — runCmd may navigate
+      done();
       runCmd(cmd);
-      setTimeout(() => { if (mountedRef.current && !wakeRunning.current) startWake(); }, 1000);
     };
 
     rec.onerror = (ev) => {
@@ -648,7 +394,7 @@ export default function DashboardLayout({ children }) {
         setTimeout(() => window.speechSynthesis.speak(u), 80);
       } else if (ev.error === "network") {
         window.speechSynthesis.resume();
-        const u = new SpeechSynthesisUtterance("Hey Zara needs internet access to Google. Use the Voice Assistant page instead — it works fully offline.");
+        const u = new SpeechSynthesisUtterance("Voice recognition requires an active network connection. Use the Voice Assistant page for offline features.");
         u.lang = langRef.current;
         setTimeout(() => window.speechSynthesis.speak(u), 80);
       }
@@ -662,7 +408,8 @@ export default function DashboardLayout({ children }) {
     const key = NAV_LABEL_KEYS[item.label];
     return key ? translate(settings.language, key) : item.label;
   };
-  const bB = settings.bigButtons;
+  const bB = settings.bigButtons || settings.accessibilityMode;
+  const sbWidth = collapsed ? (bB ? "82px" : "68px") : (bB ? "288px" : "252px");
 
   return (
     <div style={{ ...st.root, background: C.root }}>
@@ -673,20 +420,22 @@ export default function DashboardLayout({ children }) {
 
       {/* ── Sidebar ── */}
       <aside
-        style={{ ...st.sidebar, width: collapsed ? "68px" : "252px",
-          left: isMobile && !mobileOpen ? (collapsed ? "-68px" : "-252px") : "0",
+        style={{ ...st.sidebar, width: sbWidth,
+          left: isMobile && !mobileOpen ? `-${sbWidth}` : "0",
           background: C.sidebar, borderRight: `1px solid ${C.sidebarBorder}` }}
         role="navigation" aria-label="Main navigation"
       >
-        <div style={st.logoRow}>
-          <div style={st.logoIcon}><span style={{ fontSize: "18px" }}>👁️</span></div>
-          {!collapsed && <span style={{ ...st.logoText, color: C.logoText }}>VisionGuide <span style={{ color: "#22c55e" }}>AI</span></span>}
+        <div style={{ ...st.logoRow, minHeight: bB ? "80px" : "64px" }}>
+          <div style={{ ...st.logoIcon, width: bB ? "46px" : "34px", height: bB ? "46px" : "34px" }}>
+            <span style={{ fontSize: bB ? "28px" : "18px" }}>👁️</span>
+          </div>
+          {!collapsed && <span style={{ ...st.logoText, fontSize: bB ? "21px" : "17px", color: C.logoText }}>VisionGuide <span style={{ color: "#22c55e" }}>AI</span></span>}
         </div>
 
-        <button style={{ ...st.collapseBtn, background: C.collapseBtn }}
+        <button style={{ ...st.collapseBtn, background: C.collapseBtn, height: bB ? "34px" : "26px", fontSize: bB ? "14px" : "11px" }}
           onClick={() => setCollapsed(c => !c)}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-          <span style={{ fontSize: "12px" }}>{collapsed ? "▶" : "◀"}</span>
+          <span>{collapsed ? "▶" : "◀"}</span>
         </button>
 
         <div style={{ ...st.divider, background: C.divider }} />
@@ -699,12 +448,16 @@ export default function DashboardLayout({ children }) {
               <Link key={item.path} to={item.path}
                 onClick={() => isMobile && setMobileOpen(false)}
                 style={{ ...st.navLink, color: active ? item.color : C.navLinkColor,
-                  ...(active ? { background: item.color + "14", border: `1px solid ${item.color}28`, fontWeight: 700 } : {}) }}
+                  padding: bB ? "14px 16px" : "9px 10px",
+                  minHeight: bB ? "56px" : "40px",
+                  gap: bB ? "16px" : "10px",
+                  borderRadius: bB ? "14px" : "10px",
+                  ...(active ? { background: item.color + "18", border: `2px solid ${item.color}35`, fontWeight: 800 } : {}) }}
                 aria-label={label} aria-current={active ? "page" : undefined}
                 title={collapsed ? label : undefined}>
-                <span style={st.navIcon}>{item.icon}</span>
-                {!collapsed && <span style={st.navLabel}>{label}</span>}
-                {!collapsed && active && <span style={{ ...st.activeDot, background: item.color }} />}
+                <span style={{ ...st.navIcon, fontSize: bB ? "30px" : "18px", width: bB ? "36px" : "22px" }}>{item.icon}</span>
+                {!collapsed && <span style={{ ...st.navLabel, fontSize: bB ? "17px" : "14px", fontWeight: bB ? 800 : 500 }}>{label}</span>}
+                {!collapsed && active && <span style={{ ...st.activeDot, width: bB ? "10px" : "6px", height: bB ? "10px" : "6px", background: item.color }} />}
               </Link>
             );
           })}
@@ -714,71 +467,117 @@ export default function DashboardLayout({ children }) {
 
         <div style={st.sideFooter}>
           {!collapsed && (
-            <div style={{ ...st.userCard, background: C.userCard, border: `1px solid ${C.userCardBorder}` }}>
-              <div style={st.userAvatar}>{user?.name?.charAt(0).toUpperCase()}</div>
+            <div style={{ ...st.userCard, background: C.userCard, border: `1px solid ${C.userCardBorder}`, padding: bB ? "12px 14px" : "10px 12px" }}>
+              <div style={{ ...st.userAvatar, width: bB ? "42px" : "32px", height: bB ? "42px" : "32px", fontSize: bB ? "18px" : "14px" }}>
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
               <div style={{ overflow: "hidden" }}>
-                <div style={{ ...st.userName, color: C.userName }}>{user?.name}</div>
-                <div style={{ ...st.userEmail, color: C.userEmail }}>{user?.email}</div>
+                <div style={{ ...st.userName, color: C.userName, fontSize: bB ? "15px" : "13px", fontWeight: 700 }}>{user?.name}</div>
+                <div style={{ ...st.userEmail, color: C.userEmail, fontSize: bB ? "12px" : "11px" }}>{user?.email}</div>
               </div>
             </div>
           )}
-          <button style={st.signOutBtn} onClick={() => { signOut(); navigate("/signin"); }}
+          <button style={{ ...st.signOutBtn, minHeight: bB ? "52px" : "40px", fontSize: bB ? "16px" : "13px" }} onClick={() => { signOut(); navigate("/signin"); }}
             aria-label={tr("btn.sign_out")} title={collapsed ? tr("btn.sign_out") : undefined}>
-            <span>🚪</span>{!collapsed && <span>{tr("btn.sign_out")}</span>}
+            <span style={{ fontSize: bB ? "22px" : "16px" }}>🚪</span>{!collapsed && <span>{tr("btn.sign_out")}</span>}
           </button>
         </div>
       </aside>
 
       {/* ── Main ── */}
-      <div style={{ ...st.mainWrap, marginLeft: isMobile ? "0" : (collapsed ? "68px" : "252px") }}>
-        <header style={{ ...st.topBar, background: C.topBar, borderBottom: `1px solid ${C.topBarBorder}` }} role="banner">
+      <div style={{
+        ...st.mainWrap,
+        marginLeft: isMobile ? "0" : sbWidth,
+        width: isMobile ? "100%" : `calc(100% - ${sbWidth})`,
+        maxWidth: isMobile ? "100%" : `calc(100% - ${sbWidth})`,
+      }}>
+        <header style={{ ...st.topBar, height: bB ? "74px" : "62px", background: C.topBar, borderBottom: `1px solid ${C.topBarBorder}` }} role="banner">
           <div className="topbar-left" style={st.topBarLeft}>
-            <button style={{ ...st.mobileMenuBtn, display: isMobile ? "flex" : "none", color: C.logoText }}
+            <button style={{ ...st.mobileMenuBtn, display: isMobile ? "flex" : "none", color: C.logoText, fontSize: bB ? "30px" : "22px" }}
               onClick={() => setMobileOpen(o => !o)}
               aria-label={mobileOpen ? "Close menu" : "Open menu"}>
               {mobileOpen ? "✕" : "☰"}
             </button>
             <div className="topbar-crumb" style={st.breadcrumb}>
-              <span style={{ color: C.hint, fontSize: "13px" }}>VisionGuide AI</span>
-              <span style={{ color: C.hint, margin: "0 6px" }}>/</span>
-              <span className="topbar-crumb-page" style={{ color: C.userName, fontSize: "13px", fontWeight: 600 }}>
+              <span style={{ color: C.hint, fontSize: bB ? "16px" : "13px" }}>VisionGuide AI</span>
+              <span style={{ color: C.hint, margin: "0 8px" }}>/</span>
+              <span className="topbar-crumb-page" style={{ color: C.userName, fontSize: bB ? "18px" : "14px", fontWeight: 700 }}>
                 {localLabel(navItems.find(n => n.path === location.pathname) || { label: currentLabel })}
               </span>
             </div>
           </div>
 
-          <div className="topbar-right" style={st.topBarRight}>
+          <div className="topbar-right" style={{ ...st.topBarRight, gap: bB ? "14px" : "8px" }}>
             <select className="topbar-lang" value={settings.language}
               onChange={e => update("language", e.target.value)}
-              style={{ ...st.langSel, background: C.iconBtn, borderColor: C.iconBtnBorder, color: C.userName }}
+              style={{
+                ...st.langSel,
+                width: bB ? "140px" : "110px",
+                maxWidth: "150px",
+                height: bB ? "52px" : "44px",
+                fontSize: bB ? "16px" : "13px",
+                padding: bB ? "0 14px" : "0 10px",
+                background: C.iconBtn,
+                borderColor: C.iconBtnBorder,
+                color: C.userName,
+                borderRadius: bB ? "14px" : "10px",
+                flexShrink: 0,
+              }}
               aria-label="Select language">
               {LANG_OPTIONS.map(l => <option key={l.code} value={l.code}>{l.native}</option>)}
             </select>
 
-            <button style={{ ...st.iconBtn, background: C.iconBtn, borderColor: C.iconBtnBorder, color: C.userName }}
+            <button style={{
+                ...st.iconBtn,
+                height: bB ? "52px" : "44px",
+                minWidth: bB ? "52px" : "44px",
+                fontSize: bB ? "26px" : "20px",
+                background: C.iconBtn,
+                borderColor: C.iconBtnBorder,
+                color: C.userName,
+                borderRadius: bB ? "14px" : "10px",
+                flexShrink: 0,
+              }}
               onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme">
               {settings.theme === "dark" ? "☀️" : "🌙"}
             </button>
 
-            <button style={{ ...st.iconBtn,
-              background: settings.accessibilityMode ? "rgba(34,197,94,0.15)" : C.iconBtn,
-              borderColor: settings.accessibilityMode ? "rgba(34,197,94,0.4)"  : C.iconBtnBorder }}
-              onClick={toggleAccessibility} title="Toggle accessibility"
-              aria-label="Toggle accessibility mode" aria-pressed={settings.accessibilityMode}>
-              {settings.accessibilityMode ? "✅" : "♿"}
+            <button
+              style={{
+                ...st.iconBtn,
+                height: bB ? "54px" : "46px",
+                padding: bB ? "0 22px" : "0 18px",
+                fontSize: bB ? "17px" : "15px",
+                fontWeight: 800,
+                display: "inline-flex",
+                alignItems: "center",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+                gap: bB ? "12px" : "9px",
+                borderRadius: bB ? "16px" : "12px",
+                background: settings.accessibilityMode
+                  ? "linear-gradient(135deg, rgba(34,197,94,0.32), rgba(16,185,129,0.22))"
+                  : (isDark ? "rgba(34,197,94,0.12)" : "rgba(34,197,94,0.08)"),
+                border: `2px solid ${settings.accessibilityMode ? "#22c55e" : "rgba(34,197,94,0.4)"}`,
+                color: settings.accessibilityMode ? "#4ade80" : (isDark ? "#86efac" : "#15803d"),
+                boxShadow: settings.accessibilityMode
+                  ? "0 0 24px rgba(34,197,94,0.45), inset 0 0 12px rgba(34,197,94,0.2)"
+                  : "none",
+                cursor: "pointer",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+              }}
+              onClick={toggleAccessibility}
+              title={settings.accessibilityMode ? "Disable Accessibility Mode" : "Enable Accessibility Mode"}
+              aria-label="Toggle accessibility mode"
+              aria-pressed={settings.accessibilityMode}>
+              <span style={{ fontSize: bB ? "30px" : "24px", lineHeight: 1 }}>
+                {settings.accessibilityMode ? "✅" : "♿"}
+              </span>
+              <span style={{ fontWeight: 800, whiteSpace: "nowrap" }}>
+                {settings.accessibilityMode ? "Accessibility ON" : "Accessibility"}
+              </span>
             </button>
 
-            <span className="topbar-hint" style={{ color: C.hint, fontSize: "11px", display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{
-                width: "8px", height: "8px", borderRadius: "50%",
-                background: (listening || zaraActive) ? "#ef4444" : "#22c55e",
-                display: "inline-block", flexShrink: 0,
-                animation: (listening || zaraActive) ? "ping 1.2s ease-out infinite" : "micPulse 2.5s ease-in-out infinite",
-              }} />
-              <span style={{ color: "#22c55e", fontWeight: 700 }}>
-                {zaraActive ? "Zara Active" : listening ? "Listening…" : "Hey Zara"}
-              </span>
-            </span>
           </div>
         </header>
 
@@ -788,36 +587,34 @@ export default function DashboardLayout({ children }) {
         </main>
       </div>
 
-      {/* ── Zara status bar ── */}
-      {(zaraActive || listening) && (
+      {/* ── Voice status bar ── */}
+      {listening && (
         <div style={st.zaraBar}>
           <div style={st.zaraWaves}>
             {[0,1,2,3,4].map(i => <div key={i} style={{ ...st.zaraWaveBar, animationDelay: `${i * 0.1}s` }} />)}
           </div>
-          <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", flex: 1 }}>
-            {zaraActive && !listening
-              ? translate(settings.language, "zara.greeting")
-              : translate(settings.language, "zara.listening") + "…"}
+          <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff", flex: 1 }}>
+            {translate(settings.language, "zara.listening") + "…"}
           </span>
           <button
-            onClick={() => { window.speechSynthesis.cancel(); try { wakeRef.current?.stop(); cmdRecRef.current?.stop(); } catch {} resetZara(); setTimeout(startWake, 800); }}
-            style={st.zaraClose} aria-label="Cancel Zara">✕</button>
+            onClick={() => { window.speechSynthesis.cancel(); try { cmdRecRef.current?.stop(); } catch {} setListening(false); }}
+            style={st.zaraClose} aria-label="Cancel voice">✕</button>
         </div>
       )}
 
       {/* ── Floating voice FAB ── */}
       <button
         data-fab="true"
-        style={{ ...st.fab, ...(listening || zaraActive ? st.fabActive : {}),
-          width: bB ? "74px" : "64px", height: bB ? "74px" : "64px" }}
+        style={{ ...st.fab, ...(listening ? st.fabActive : {}),
+          width: bB ? "92px" : "68px", height: bB ? "92px" : "68px" }}
         onClick={startFABVoice}
         aria-label={listening ? "Stop listening" : "Activate voice"}
         aria-pressed={listening}
-        title={listening ? "Listening…" : 'Tap or say "Hey Zara"'}>
-        {(listening || zaraActive)
-          ? <div style={st.waves}>{[0,1,2].map(i => <div key={i} style={{ ...st.bar, animationDelay: `${i * 0.15}s` }} />)}</div>
-          : <span style={{ fontSize: bB ? "30px" : "26px" }}>🎤</span>}
-        {(listening || zaraActive) && <div style={st.ping} />}
+        title={listening ? "Listening…" : "Tap to speak"}>
+        {listening
+          ? <div style={st.waves}>{[0,1,2].map(i => <div key={i} style={{ ...st.bar, height: bB ? "40px" : "26px", animationDelay: `${i * 0.15}s` }} />)}</div>
+          : <span style={{ fontSize: bB ? "42px" : "28px" }}>🎤</span>}
+        {listening && <div style={st.ping} />}
       </button>
 
       <style>{`
@@ -831,7 +628,7 @@ export default function DashboardLayout({ children }) {
 }
 
 const st = {
-  root:        { display: "flex", minHeight: "100vh", position: "relative" },
+  root:        { minHeight: "100vh", position: "relative", width: "100%", maxWidth: "100vw", overflowX: "hidden" },
   overlay:     { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 90, backdropFilter: "blur(4px)" },
   sidebar:     { position: "fixed", top: 0, left: 0, height: "100vh", zIndex: 100, backdropFilter: "blur(20px)", display: "flex", flexDirection: "column", transition: "width 0.22s cubic-bezier(.4,0,.2,1), left 0.22s cubic-bezier(.4,0,.2,1)", overflow: "hidden", boxShadow: "4px 0 30px rgba(0,0,0,0.25)" },
   logoRow:     { display: "flex", alignItems: "center", gap: "10px", padding: "20px 16px 14px", minHeight: "64px" },
@@ -850,8 +647,8 @@ const st = {
   userName:    { fontSize: "13px", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "140px" },
   userEmail:   { fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "140px" },
   signOutBtn:  { width: "100%", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: "#f87171", padding: "9px 12px", borderRadius: "9px", cursor: "pointer", fontFamily: "inherit", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" },
-  mainWrap:    { flex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", transition: "margin-left 0.22s cubic-bezier(.4,0,.2,1)" },
-  topBar:      { height: "56px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 50 },
+  mainWrap:    { minHeight: "100vh", display: "flex", flexDirection: "column", transition: "margin-left 0.22s cubic-bezier(.4,0,.2,1)" },
+  topBar:      { height: "56px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", boxSizing: "border-box", width: "100%", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 50 },
   topBarLeft:  { display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0, overflow: "hidden" },
   topBarRight: { display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 },
   mobileMenuBtn: { background: "transparent", border: "none", fontSize: "22px", cursor: "pointer", alignItems: "center", justifyContent: "center", padding: "4px 6px", borderRadius: "6px" },

@@ -620,23 +620,8 @@ export default function VoiceAssistantPage() {
   useEffect(() => {
     aliveRef.current = true;
 
-    // The background "Hey Zara" wake-word listener (DashboardLayout) and
-    // this page's own recognizers both want exclusive use of the
-    // microphone. The previous approach — pause it before each individual
-    // listen, resume it after each individual response via the ~9
-    // window._vgResumeWake() call sites throughout this file — meant Hey
-    // Zara's recognizer was being restarted after almost every single turn,
-    // then had to be re-stopped for the next one. That repeated start/stop
-    // churn on a second SpeechRecognition instance is exactly what could
-    // make this page's OWN recognizer.start() intermittently fail or never
-    // fire right when the next command was spoken. This page has its own
-    // manual Start Listening control, so Hey Zara isn't needed here at all
-    // — suppress it for the page's entire mounted session instead: pause it
-    // once now, and turn window._vgResumeWake() into a no-op for as long as
-    // this page is mounted so none of those existing call sites can
-    // prematurely reactivate it mid-session. The real function is restored
-    // (and actually called) on unmount, so Hey Zara comes back everywhere
-    // else exactly as before.
+    // Coordinate exclusive microphone access with the dashboard layout:
+    // This page manages its own dedicated speech recognition and text-to-speech lifecycle.
     const realResumeWake = window._vgResumeWake;
 
     if (window._vgPauseWake) {

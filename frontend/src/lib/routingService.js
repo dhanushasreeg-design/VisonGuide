@@ -283,6 +283,14 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
   const bboxPhoton = `${userLon - deltaLon},${userLat - delta},${userLon + deltaLon},${userLat + delta}`;
   const bboxNom = `${userLon - deltaLon},${userLat + delta},${userLon + deltaLon},${userLat - delta}`;
 
+  const getBboxNom = (rKm) => {
+    const d = rKm / 111.32;
+    const dLon = d / Math.max(0.1, Math.cos((userLat * Math.PI) / 180));
+    return `${userLon - dLon},${userLat + d},${userLon + dLon},${userLat - d}`;
+  };
+
+  const tightBboxNom = getBboxNom(Math.min(radiusKm, 1.2));
+
   // Helper 1: Query Komoot Photon OSM API (lightning fast, zero rate-limiting)
   const queryPhoton = async (queryText, limit = 12) => {
     try {
@@ -314,9 +322,10 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
   };
 
   // Helper 2: Query OpenStreetMap Nominatim with safe text/JSON parsing against XML 429 pages
-  const queryNominatimSingle = async (queryText, limit = 8) => {
+  const queryNominatimSingle = async (queryText, limit = 8, customBbox = null) => {
     try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryText)}&format=jsonv2&limit=${limit}&viewbox=${bboxNom}&bounded=1&addressdetails=1`;
+      const box = customBbox || bboxNom;
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryText)}&format=jsonv2&limit=${limit}&viewbox=${box}&bounded=1&addressdetails=1`;
       const res = await fetch(url, {
         headers: { "User-Agent": "VisionGuideAI/1.0 (Accessibility Assistant)" },
         signal: AbortSignal.timeout(Math.min(options.timeoutMs || 4000, 4000)),
@@ -365,7 +374,7 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
     if (rawPlaces.length < 10) {
       for (const item of essentials.slice(0, 3)) {
         try {
-          const items = await queryNominatimSingle(item.q, 5);
+          const items = await queryNominatimSingle(item.q, 5, bboxNom);
           if (items && items.length > 0) {
             rawPlaces.push(...items.map((p) => ({ ...p, _amenity: item.tag })));
             if (rawPlaces.length >= 10) break;
@@ -380,17 +389,25 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
     };
     const searchTerms = [config.primary, ...(config.alternates || []).slice(0, 3)];
 
-    // 1. Query synonyms using Photon (instant, zero rate limits)
+    // 1. First query Nominatim with tight local bbox (1.2 km) so walkable neighborhood POIs (< 1 km) appear immediately
+    try {
+      const localItems = await queryNominatimSingle(config.primary, 8, tightBboxNom);
+      if (localItems && localItems.length > 0) {
+        rawPlaces.push(...localItems.map((p) => ({ ...p, _amenity: category })));
+      }
+    } catch {}
+
+    // 2. Query synonyms using Photon (instant, zero rate limits) for wide city coverage
     const photonPromises = searchTerms.map((term) => queryPhoton(term, 10));
     const photonNested = await Promise.all(photonPromises);
     rawPlaces.push(...photonNested.flat().map((p) => ({ ...p, _amenity: category })));
 
-    // 2. Supplement with Nominatim if fewer than 5 results (sequential to prevent 429)
+    // 3. Supplement with wider Nominatim if fewer than 5 results (sequential to prevent 429)
     if (rawPlaces.length < 5) {
       const nomTerms = [config.primary, ...(config.alternates || []).slice(0, 2)];
       for (const term of nomTerms) {
         try {
-          const items = await queryNominatimSingle(term, 8);
+          const items = await queryNominatimSingle(term, 8, bboxNom);
           if (items && items.length > 0) {
             rawPlaces.push(...items.map((p) => ({ ...p, _amenity: category })));
             if (rawPlaces.length >= 8) break;
