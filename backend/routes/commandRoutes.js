@@ -115,7 +115,7 @@ router.get("/", async (req, res) => {
 /* ── POST /api/commands ── */
 router.post("/", async (req, res) => {
   try {
-    const { commandText } = req.body;
+    const commandText = req.body?.commandText || req.body?.transcript || req.body?.command;
     if (!commandText) {
       return res.status(400).json({ message: "Command text is required" });
     }

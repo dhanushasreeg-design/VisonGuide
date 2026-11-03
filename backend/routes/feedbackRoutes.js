@@ -27,7 +27,8 @@ router.get("/", asyncHandler(async (req, res) => {
 }));
 
 router.post("/", asyncHandler(async (req, res) => {
-  const { name, feedback, rating } = req.body ?? {};
+  const feedback = req.body?.feedback || req.body?.comment || req.body?.message;
+  const { name, rating } = req.body ?? {};
 
   if (!feedback?.trim())
     return res.status(400).json({ message: "Feedback is required" });

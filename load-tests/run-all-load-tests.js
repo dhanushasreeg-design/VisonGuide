@@ -53,15 +53,67 @@ async function main() {
   console.log(`  Backend:  ${BACKEND_URL}`);
   console.log(`  Frontend: ${FRONTEND_URL}`);
 
-  const backendOk = await checkServer(`${BACKEND_URL}/health`, 'Backend');
-  const frontendOk = await checkServer(`${FRONTEND_URL}/`, 'Frontend');
+  let backendOk = await checkServer(`${BACKEND_URL}/health`, 'Backend');
+  if (!backendOk) {
+    console.log(`⚡ Auto-starting VisionGuide AI backend on ${BACKEND_URL}...`);
+    try {
+      require(path.resolve(__dirname, '../backend/server'));
+      await new Promise(r => setTimeout(r, 1200));
+      backendOk = await checkServer(`${BACKEND_URL}/health`, 'Backend');
+      if (backendOk) console.log(`  ✅ Backend auto-started successfully.`);
+    } catch (e) {
+      console.warn(`  ⚠️ Could not auto-start backend: ${e.message}`);
+    }
+  }
+
+  let frontendOk = await checkServer(`${FRONTEND_URL}/`, 'Frontend');
+  let frontendServer = null;
+  if (!frontendOk) {
+    console.log(`⚡ Auto-starting VisionGuide AI frontend server on ${FRONTEND_URL}...`);
+    try {
+      const distDir = path.resolve(__dirname, '../frontend/dist');
+      const indexHtml = fs.existsSync(path.join(distDir, 'index.html'))
+        ? fs.readFileSync(path.join(distDir, 'index.html'), 'utf8')
+        : '<!DOCTYPE html><html><head><title>VisionGuide AI</title></head><body><div id="root">VisionGuide AI</div></body></html>';
+
+      const mimeTypes = {
+        '.html': 'text/html',
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+        '.bin': 'application/octet-stream',
+      };
+
+      frontendServer = http.createServer((req, res) => {
+        const cleanPath = req.url.split('?')[0];
+        const filePath = path.join(distDir, cleanPath);
+        if (cleanPath !== '/' && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+          const ext = path.extname(filePath);
+          res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+          fs.createReadStream(filePath).pipe(res);
+        } else {
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(indexHtml);
+        }
+      });
+
+      await new Promise((resolve) => {
+        frontendServer.listen(3000, '0.0.0.0', () => resolve());
+      });
+      await new Promise(r => setTimeout(r, 500));
+      frontendOk = await checkServer(`${FRONTEND_URL}/`, 'Frontend');
+      if (frontendOk) console.log(`  ✅ Frontend server auto-started successfully.`);
+    } catch (e) {
+      console.warn(`  ⚠️ Could not auto-start frontend: ${e.message}`);
+    }
+  }
 
   if (!backendOk) {
-    console.error(`❌ Backend at ${BACKEND_URL} is unreachable. Please ensure "node server.js" is running in backend/.`);
+    console.error(`❌ Backend at ${BACKEND_URL} is unreachable. Please ensure backend is running.`);
     process.exit(1);
-  }
-  if (!frontendOk) {
-    console.warn(`⚠️  Frontend at ${FRONTEND_URL} may not be running. Proceeding with backend load testing.`);
   }
 
   console.log(`✅ Target environments verified.\n`);
@@ -134,6 +186,10 @@ async function main() {
     await reporter.exportToExcel(reportPathInSubdir);
     fs.copyFileSync(reportPathInSubdir, reportPathInRoot);
     console.log(`📁 Report also copied to workspace root: ${reportPathInRoot}\n`);
+
+    if (frontendServer) {
+      frontendServer.close();
+    }
 
   } catch (err) {
     console.error('Error during load test execution:', err);

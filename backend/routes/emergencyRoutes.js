@@ -27,7 +27,8 @@ router.get("/", asyncHandler(async (req, res) => {
 }));
 
 router.post("/", asyncHandler(async (req, res) => {
-  const { name, phone, relation } = req.body ?? {};
+  const { name, phone } = req.body ?? {};
+  const relation = req.body?.relation || req.body?.relationship;
 
   if (!name?.trim() || !phone?.trim() || !relation?.trim())
     return res.status(400).json({ message: "Name, phone and relation are required" });

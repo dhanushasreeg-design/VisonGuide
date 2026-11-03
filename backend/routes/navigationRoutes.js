@@ -27,7 +27,10 @@ router.get("/", asyncHandler(async (req, res) => {
 }));
 
 router.post("/", asyncHandler(async (req, res) => {
-  const { destination } = req.body ?? {};
+  let { destination } = req.body ?? {};
+  if (typeof destination === "object" && destination !== null) {
+    destination = destination.name || destination.address || (destination.lat && destination.lng ? `${destination.lat}, ${destination.lng}` : "");
+  }
 
   if (!destination?.trim())
     return res.status(400).json({ message: "Destination is required" });

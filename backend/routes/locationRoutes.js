@@ -28,7 +28,8 @@ router.get("/", asyncHandler(async (req, res) => {
 }));
 
 router.post("/", asyncHandler(async (req, res) => {
-  const { place_name, address } = req.body ?? {};
+  const place_name = req.body?.place_name || req.body?.name;
+  const { address } = req.body ?? {};
 
   if (!place_name?.trim())
     return res.status(400).json({ message: "Place name is required" });

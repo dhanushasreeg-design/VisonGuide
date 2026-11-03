@@ -5,7 +5,9 @@ const rateLimit  = require("express-rate-limit");
 const helmet     = require("helmet");
 const auth       = require("./middleware/auth");
 
-dotenv.config();
+const path       = require("path");
+
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 /* ── Fail fast if required env vars are missing ── */
 ["SUPABASE_URL", "SUPABASE_KEY", "API_KEY", "JWT_SECRET"].forEach(k => {

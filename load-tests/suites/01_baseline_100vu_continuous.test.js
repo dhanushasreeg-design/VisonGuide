@@ -5,7 +5,7 @@
  */
 
 const LoadEngine = require('../helpers/loadEngine');
-const { BACKEND_URL, FRONTEND_URL, SLA } = require('../config/loadTestConfig');
+const { BACKEND_URL, FRONTEND_URL, DURATION_SECONDS, SLA } = require('../config/loadTestConfig');
 
 async function runBaseline100VUSuite(reporter) {
   const SUITE = '01: Baseline 100 Virtual Users Concurrency';
@@ -24,12 +24,12 @@ async function runBaseline100VUSuite(reporter) {
   ];
 
   console.log(`\n  🚀 Initiating 100 Virtual Users Continuous Baseline Load Test...`);
-  console.log(`  ⏱️  Running continuously for sustained duration with thousands of requests...`);
+  console.log(`  ⏱️  Running continuously for ${DURATION_SECONDS || 60} seconds with thousands of requests...`);
 
   // Run sustained load with 100 virtual users across endpoints
   const sustainedStats = await LoadEngine.runSustainedLoad({
     virtualUsers: 100,
-    durationSeconds: 15, // High-density continuous baseline window (100 VUs)
+    durationSeconds: DURATION_SECONDS || 60, // Full continuous baseline window (100 VUs)
     endpoints: mixedEndpoints,
     progressCallback: (p) => {
       process.stdout.write(`\r  ⚡ [VU: 100] ${p.elapsedSec}s elapsed | Requests: ${p.totalRequests.toLocaleString()} | Throughput: ${p.currentRps} req/sec`);
