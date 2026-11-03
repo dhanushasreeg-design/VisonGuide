@@ -71,3 +71,4 @@ def run_deployment_status_tests():
 
 if __name__ == "__main__":
     sys.exit(run_deployment_status_tests())
+
