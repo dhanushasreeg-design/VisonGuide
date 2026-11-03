@@ -1,0 +1,33 @@
+{
+  "name": "VisionGuide AI — Voice & Accessibility Assistant",
+  "short_name": "VisionGuide",
+  "description": "Accessible voice-guided navigation, object detection, OCR and emergency assistant for visually impaired users.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "background_color": "#05080f",
+  "theme_color": "#22c55e",
+  "orientation": "any",
+  "categories": ["accessibility", "utilities", "navigation"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

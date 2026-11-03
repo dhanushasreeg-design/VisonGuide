@@ -60,6 +60,29 @@ export default function DashboardLayout({ children }) {
   const [isMobile,     setIsMobile]     = useState(() => window.innerWidth < 768);
   const [listening,    setListening]    = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [canInstall,   setCanInstall]   = useState(false);
+
+  /* PWA install prompt handler */
+  useEffect(() => {
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+  }, []);
+
+  const triggerInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setCanInstall(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   /* Stable refs so effects don't re-run on every render */
   const langRef      = useRef(settings.language);
@@ -466,6 +489,32 @@ export default function DashboardLayout({ children }) {
         <div style={{ ...st.divider, background: C.divider }} />
 
         <div style={st.sideFooter}>
+          {canInstall && (
+            <button
+              onClick={triggerInstall}
+              style={{
+                width: "100%",
+                background: "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(16,185,129,0.12))",
+                border: "1.5px solid #22c55e",
+                color: "#22c55e",
+                padding: bB ? "12px 14px" : "10px 12px",
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: bB ? "15px" : "13px",
+                fontWeight: 800,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                justifyContent: "center",
+                marginBottom: "8px",
+              }}
+              aria-label="Install VisionGuide AI app on your phone"
+            >
+              <span>📲</span>
+              {!collapsed && <span>Install App</span>}
+            </button>
+          )}
           {!collapsed && (
             <div style={{ ...st.userCard, background: C.userCard, border: `1px solid ${C.userCardBorder}`, padding: bB ? "12px 14px" : "10px 12px" }}>
               <div style={{ ...st.userAvatar, width: bB ? "42px" : "32px", height: bB ? "42px" : "32px", fontSize: bB ? "18px" : "14px" }}>
@@ -582,10 +631,156 @@ export default function DashboardLayout({ children }) {
         </header>
 
         <main id="main-content" className="dash-content"
-          style={{ ...st.content, padding: isMobile ? "18px 14px 100px" : "32px 28px 80px" }} tabIndex={-1}>
+          style={{
+            ...st.content,
+            padding: isMobile
+              ? (bB ? "20px 14px calc(108px + env(safe-area-inset-bottom, 16px))" : "18px 14px calc(92px + env(safe-area-inset-bottom, 12px))")
+              : "32px 28px 80px"
+          }}
+          tabIndex={-1}
+        >
           {children}
         </main>
       </div>
+
+      {/* ── Mobile Bottom App Dock ── */}
+      {isMobile && (
+        <nav
+          className="mobile-bottom-dock"
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: bB ? "74px" : "64px",
+            background: isDark ? "rgba(13,17,23,0.96)" : "rgba(255,255,255,0.96)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderTop: `1px solid ${C.sidebarBorder}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-around",
+            zIndex: 150,
+            paddingBottom: "env(safe-area-inset-bottom, 4px)",
+            boxShadow: "0 -4px 24px rgba(0,0,0,0.2)",
+          }}
+          role="navigation"
+          aria-label="Mobile Navigation Dock"
+        >
+          {/* Home */}
+          <Link
+            to="/dashboard"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textDecoration: "none",
+              color: location.pathname === "/dashboard" ? "#22c55e" : C.navLinkColor,
+              flex: 1,
+              height: "100%",
+              gap: "2px",
+              fontWeight: location.pathname === "/dashboard" ? 800 : 600,
+            }}
+            aria-label="Home Dashboard"
+          >
+            <span style={{ fontSize: bB ? "24px" : "20px" }}>🏠</span>
+            <span style={{ fontSize: bB ? "13px" : "11px" }}>Home</span>
+          </Link>
+
+          {/* Navigation / Map */}
+          <Link
+            to="/dashboard/navigation"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textDecoration: "none",
+              color: location.pathname === "/dashboard/navigation" ? "#a78bfa" : C.navLinkColor,
+              flex: 1,
+              height: "100%",
+              gap: "2px",
+              fontWeight: location.pathname === "/dashboard/navigation" ? 800 : 600,
+            }}
+            aria-label="Navigation & Maps"
+          >
+            <span style={{ fontSize: bB ? "24px" : "20px" }}>🗺️</span>
+            <span style={{ fontSize: bB ? "13px" : "11px" }}>Map</span>
+          </Link>
+
+          {/* Center Voice Button */}
+          <Link
+            to="/dashboard/voice"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textDecoration: "none",
+              position: "relative",
+              top: "-12px",
+              background: listening
+                ? "linear-gradient(135deg,#ef4444,#dc2626)"
+                : "linear-gradient(135deg,#facc15,#f59e0b)",
+              color: "#000",
+              width: bB ? "62px" : "54px",
+              height: bB ? "62px" : "54px",
+              borderRadius: "50%",
+              boxShadow: "0 6px 20px rgba(250,204,21,0.45)",
+              flexShrink: 0,
+            }}
+            aria-label="Voice Assistant"
+          >
+            <span style={{ fontSize: bB ? "30px" : "26px" }}>🎤</span>
+          </Link>
+
+          {/* SOS Alert */}
+          <Link
+            to="/dashboard/sos"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textDecoration: "none",
+              color: location.pathname === "/dashboard/sos" ? "#ef4444" : C.navLinkColor,
+              flex: 1,
+              height: "100%",
+              gap: "2px",
+              fontWeight: location.pathname === "/dashboard/sos" ? 800 : 600,
+            }}
+            aria-label="SOS Emergency"
+          >
+            <span style={{ fontSize: bB ? "24px" : "20px" }}>🚨</span>
+            <span style={{ fontSize: bB ? "13px" : "11px", color: "#ef4444", fontWeight: 800 }}>SOS</span>
+          </Link>
+
+          {/* More Menu */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "none",
+              border: "none",
+              color: C.navLinkColor,
+              flex: 1,
+              height: "100%",
+              gap: "2px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: 600,
+            }}
+            aria-label="Open Full Navigation Menu"
+          >
+            <span style={{ fontSize: bB ? "24px" : "20px" }}>☰</span>
+            <span style={{ fontSize: bB ? "13px" : "11px" }}>Menu</span>
+          </button>
+        </nav>
+      )}
 
       {/* ── Voice status bar ── */}
       {listening && (
@@ -605,8 +800,14 @@ export default function DashboardLayout({ children }) {
       {/* ── Floating voice FAB ── */}
       <button
         data-fab="true"
-        style={{ ...st.fab, ...(listening ? st.fabActive : {}),
-          width: bB ? "92px" : "68px", height: bB ? "92px" : "68px" }}
+        style={{
+          ...st.fab,
+          ...(listening ? st.fabActive : {}),
+          bottom: isMobile ? "calc(76px + env(safe-area-inset-bottom, 12px))" : "28px",
+          right: isMobile ? "16px" : "28px",
+          width: bB ? "92px" : "68px",
+          height: bB ? "92px" : "68px",
+        }}
         onClick={startFABVoice}
         aria-label={listening ? "Stop listening" : "Activate voice"}
         aria-pressed={listening}

@@ -507,3 +507,60 @@ html[data-bigbtns="1"] .nearby-grid {
   .page-header p  { font-size: 13px !important; }
   .btn-lg { padding: 14px 24px !important; font-size: 15px !important; }
 }
+
+/* ═══════════════════════════════════════════════════
+   MOBILE APP-LIKE EXPERIENCE & SAFE AREAS
+═══════════════════════════════════════════════════ */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+body {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  padding-top: var(--sat);
+}
+
+/* Mobile App Bottom Dock */
+.mobile-bottom-dock {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mobile-bottom-dock a,
+.mobile-bottom-dock button {
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  touch-action: manipulation;
+}
+.mobile-bottom-dock a:active,
+.mobile-bottom-dock button:active {
+  transform: scale(0.92);
+  opacity: 0.8;
+}
+
+/* Voice Assistant Layout Responsive */
+.va-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .va-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+/* Narrow mobile polish (320px - 375px) */
+@media (max-width: 375px) {
+  .stats-grid { grid-template-columns: 1fr !important; }
+  .nearby-grid { grid-template-columns: 1fr !important; }
+  .links-grid { grid-template-columns: 1fr !important; }
+  .btn { padding: 10px 14px !important; font-size: 13px !important; }
+  .page-header h1 { font-size: 19px !important; }
+}
+

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="24" fill="#0d1117" stroke="#22c55e" stroke-width="4"/>
+  <!-- Eye outer contour -->
+  <path d="M 15 50 Q 50 20 85 50 Q 50 80 15 50 Z" stroke="#22c55e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Pupil -->
+  <circle cx="50" cy="50" r="14" fill="#22c55e"/>
+  <!-- Light reflection -->
+  <circle cx="45" cy="45" r="5" fill="#ffffff"/>
+  <!-- Voice soundwaves -->
+  <path d="M 8 42 Q 4 50 8 58" stroke="#4ade80" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 92 42 Q 96 50 92 58" stroke="#4ade80" stroke-width="3" stroke-linecap="round"/>
+</svg>

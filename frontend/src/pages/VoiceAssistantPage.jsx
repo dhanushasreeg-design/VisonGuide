@@ -2613,13 +2613,7 @@ export default function VoiceAssistantPage() {
         </div>
 
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "minmax(0,1.1fr) minmax(0,1fr)",
-            gap: "20px",
-            alignItems: "start",
-          }}
+          className="va-layout"
         >
           {/* =====================================================
               LEFT SIDE

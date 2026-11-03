@@ -1,0 +1,63 @@
+{
+  "name": "VisionGuide AI — Voice & Accessibility Assistant",
+  "short_name": "VisionGuide",
+  "description": "Accessible voice-guided navigation, object detection, OCR and emergency assistant for visually impaired users.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "background_color": "#05080f",
+  "theme_color": "#22c55e",
+  "orientation": "any",
+  "categories": ["accessibility", "utilities", "navigation"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Voice Assistant",
+      "short_name": "Voice",
+      "description": "Speak commands to control VisionGuide AI",
+      "url": "./dashboard/voice",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "SOS Emergency",
+      "short_name": "SOS",
+      "description": "Trigger quick emergency contact alert",
+      "url": "./dashboard/sos",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Navigation",
+      "short_name": "Maps",
+      "description": "Voice-guided routes and nearby places",
+      "url": "./dashboard/navigation",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Camera OCR",
+      "short_name": "Camera",
+      "description": "Scan and read text aloud",
+      "url": "./dashboard/camera",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
