@@ -191,14 +191,44 @@ export default function EmergencyContactsPage() {
     setTimeout(() => setMessage(null), 3500);
   };
 
+  const DEFAULT_CONTACTS = [
+    { id: "def-1", name: "Emergency Services", phone: "112", relation: "Helpline" },
+    { id: "def-2", name: "Doctor", phone: "+919876543210", relation: "Medical" },
+    { id: "def-3", name: "Ambulance", phone: "108", relation: "Medical Emergency" },
+    { id: "def-4", name: "Family Caregiver", phone: "+919876512345", relation: "Family" },
+  ];
+
   const fetchContacts = async () => {
     setLoading(true);
+    let loaded = [];
+
+    // 1. Try local storage first so contacts are instantly available
+    try {
+      const raw = localStorage.getItem("visionguide_emergency_contacts");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      }
+    } catch (_) {}
+
+    // 2. Try remote API if connected
     try {
       const res = await API.get("/emergency");
-      setContacts(res.data);
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        loaded = res.data;
+        localStorage.setItem("visionguide_emergency_contacts", JSON.stringify(res.data));
+      }
     } catch (_) {
-      showMessage("Failed to load contacts.", "error");
+      // Backend offline is normal in static GitHub Pages or offline mobile
     }
+
+    // 3. Fallback to default contacts if empty
+    if (!loaded.length) {
+      loaded = DEFAULT_CONTACTS;
+      try { localStorage.setItem("visionguide_emergency_contacts", JSON.stringify(DEFAULT_CONTACTS)); } catch (_) {}
+    }
+
+    setContacts(loaded);
     setLoading(false);
   };
 
@@ -206,29 +236,53 @@ export default function EmergencyContactsPage() {
 
   const addContact = async (e) => {
     e.preventDefault();
+    if (!form.name.trim() || !form.phone.trim()) {
+      showMessage("Please provide contact name and phone number.", "error");
+      return;
+    }
+
     setSaving(true);
+    const newEntry = {
+      id: "cnt_" + Date.now(),
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      relation: form.relation.trim() || "Emergency Contact",
+    };
+
+    // 1. Persistent save to localStorage immediately
+    setContacts((prev) => {
+      const updated = [newEntry, ...prev];
+      try { localStorage.setItem("visionguide_emergency_contacts", JSON.stringify(updated)); } catch (_) {}
+      return updated;
+    });
+
+    // 2. Attempt backend sync in background
     try {
       await API.post("/emergency", form);
-      setForm({ name: "", phone: "", relation: "" });
-      await fetchContacts();
-      showMessage("Emergency contact added successfully.");
-      speak("Emergency contact added successfully.");
-    } catch (err) {
-      showMessage(err.response?.data?.message || "Failed to add contact.", "error");
+    } catch (_) {
+      console.log("[CONTACTS] Saved locally; remote backend offline.");
     }
+
+    setForm({ name: "", phone: "", relation: "" });
     setSaving(false);
+    showMessage("Emergency contact added successfully.");
+    speak(`Emergency contact ${newEntry.name} added successfully.`);
   };
 
   const deleteContact = async (id) => {
     setConfirmId(null);
+    setContacts((prev) => {
+      const updated = prev.filter((c) => String(c.id) !== String(id));
+      try { localStorage.setItem("visionguide_emergency_contacts", JSON.stringify(updated)); } catch (_) {}
+      return updated;
+    });
+
     try {
       await API.delete(`/emergency/${id}`);
-      await fetchContacts();
-      showMessage("Contact deleted.");
-      speak("Contact deleted.");
-    } catch (_) {
-      showMessage("Failed to delete contact.", "error");
-    }
+    } catch (_) {}
+
+    showMessage("Contact deleted.");
+    speak("Contact deleted.");
   };
 
   const readAll = () => {

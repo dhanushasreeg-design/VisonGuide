@@ -398,6 +398,18 @@ export default function NavigationPage() {
       );
     });
 
+  const speakMyCurrentLocation = async () => {
+    try {
+      speak("Determining your live location now.");
+      const pos = await getCurrentLocation();
+      setCurrentPos(pos);
+      const locText = pos.label || (pos.lat && pos.lon ? `Latitude ${pos.lat.toFixed(4)}, Longitude ${pos.lon.toFixed(4)}` : "your position");
+      speak(`You are currently at ${locText}. GPS accuracy is within ${Math.round(pos.accuracy || 10)} meters.`);
+    } catch (err) {
+      speak("Could not determine current location. Please verify location permissions.");
+    }
+  };
+
   /* ─────────────────────────────────────────────────────────────────────────
      GEOCODING (OpenStreetMap Nominatim with localized viewbox bias)
   ───────────────────────────────────────────────────────────────────────── */
@@ -1469,6 +1481,87 @@ export default function NavigationPage() {
            INPUT CARD: Origin, Destination, Transport Modes, and Route Actions
         ─────────────────────────────────────────────────────────────────── */}
         <div className="card" style={{ marginBottom: "24px", padding: "24px" }}>
+          {/* Accessible Blind-Assistance Shortcut Strip */}
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={speakMyCurrentLocation}
+              style={{
+                flex: "1 1 200px",
+                minHeight: "48px",
+                background: "rgba(167,139,250,0.18)",
+                border: "2px solid #a78bfa",
+                color: "#c4b5fd",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+              aria-label="Speak my current location aloud"
+            >
+              <span>🔊</span>
+              <span>Where Am I? (Read Location)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDestination("hospital");
+                startRoute("hospital");
+                speak("Routing to the nearest hospital.");
+              }}
+              style={{
+                flex: "1 1 160px",
+                minHeight: "48px",
+                background: "rgba(239,68,68,0.15)",
+                border: "2px solid #ef4444",
+                color: "#fca5a5",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+              aria-label="Route to nearest hospital"
+            >
+              <span>🏥</span>
+              <span>Nearest Hospital</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDestination("pharmacy");
+                startRoute("pharmacy");
+                speak("Routing to the nearest pharmacy.");
+              }}
+              style={{
+                flex: "1 1 160px",
+                minHeight: "48px",
+                background: "rgba(52,211,153,0.15)",
+                border: "2px solid #34d399",
+                color: "#6ee7b7",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+              aria-label="Route to nearest pharmacy"
+            >
+              <span>💊</span>
+              <span>Nearest Pharmacy</span>
+            </button>
+          </div>
+
           {/* Starting Location (Defaults to Live GPS) */}
           <div style={{ marginBottom: "18px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>

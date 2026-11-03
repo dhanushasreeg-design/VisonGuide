@@ -81,6 +81,16 @@ export default function NavigationScreen({ initialQuery = 'hospital', onBack }) 
               Lat: {coords.latitude.toFixed(4)}, Lon: {coords.longitude.toFixed(4)}
             </Text>
           )}
+          <BigButton
+            title="Where Am I? (Speak Location)"
+            icon="📢"
+            variant="ghost"
+            style={{ marginTop: 10 }}
+            onPress={() => {
+              triggerHaptic('medium');
+              speak(`You are currently at ${address}.`);
+            }}
+          />
         </View>
 
         {/* Turn-by-Turn Spoken Guidance Banner */}

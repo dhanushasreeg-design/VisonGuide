@@ -28,7 +28,7 @@ export default function ObjectDetectionPage() {
   const [predictions,    setPredictions]    = useState([]);
   const [classifications,setClassifications]= useState([]); // MobileNet results
   const [imgSrc,         setImgSrc]         = useState(null);
-  const [mode,           setMode]           = useState("upload");
+  const [mode,           setMode]           = useState("camera");
   const [tab,            setTab]            = useState("object");
   const [cameraActive,   setCameraActive]   = useState(false);
   const [liveDetecting,  setLiveDetecting]  = useState(false);
@@ -897,16 +897,23 @@ export default function ObjectDetectionPage() {
           ))}
         </div>
 
-        {/* Mode switcher */}
+        {/* Mode switcher - Live Camera prioritized for Visually Impaired Users */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: "wrap" }}>
-          {[{ key: "upload", label: "📁 Upload Image" }, { key: "camera", label: "📷 Live Camera" }].map(m => (
-            <button key={m.key} className={`btn btn-sm ${mode === m.key ? "btn-yellow" : "btn-ghost"}`}
+          {[
+            { key: "camera", label: "🎥 Live Camera Scanner (Primary)" },
+            { key: "upload", label: "📁 Upload Photo (Optional)" },
+          ].map(m => (
+            <button key={m.key} className={`btn ${mode === m.key ? "btn-green" : "btn-ghost"}`}
+              style={{ minHeight: "44px", fontSize: "14px", fontWeight: 700 }}
               onClick={() => {
                 setMode(m.key);
-                if (m.key === "upload") stopCamera();
-                // Switching into Live Camera (even before Start Camera is clicked) should not
-                // keep showing a hazard result from a previous image upload.
-                else setAccessibilityPredictions([]);
+                if (m.key === "upload") {
+                  stopCamera();
+                  speak("Switched to Upload Image mode.");
+                } else {
+                  setAccessibilityPredictions([]);
+                  speak("Switched to Live Camera Detection mode.");
+                }
               }}>
               {m.label}
             </button>
@@ -966,27 +973,32 @@ export default function ObjectDetectionPage() {
                   <canvas ref={camCanvasRef}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
                   {!cameraActive && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "280px", color: "#9ca3af", flexDirection: "column", gap: "12px" }}>
-                      <span style={{ fontSize: "56px" }}>📷</span>
-                      <span style={{ fontSize: "14px" }}>Camera not started</span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "280px", color: "#9ca3af", flexDirection: "column", gap: "12px", textAlign: "center", padding: "20px" }}>
+                      <span style={{ fontSize: "56px" }}>🎥</span>
+                      <span style={{ fontSize: "16px", fontWeight: 700, color: "#f8fafc" }}>Live Obstacle & Object Camera</span>
+                      <span style={{ fontSize: "13px", color: "#94a3b8", maxWidth: "360px" }}>Tap Start Camera below. The camera will stream live video and speak out people, chairs, doors, and obstacles in front of you.</span>
                     </div>
                   )}
                   {cameraActive && tab === "object" && liveDetecting && (
-                    <div style={{ position: "absolute", top: "10px", left: "10px", background: "rgba(34,197,94,0.9)", color: "#000", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, display: "flex", alignItems: "center", gap: "5px" }}>
-                      <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#000", display: "inline-block" }} />
-                      LIVE DETECTION
+                    <div style={{ position: "absolute", top: "10px", left: "10px", background: "rgba(34,197,94,0.9)", color: "#000", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 800, display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#000", display: "inline-block" }} />
+                      LIVE DETECTOR ACTIVE
                     </div>
                   )}
                 </div>
 
                 <div style={{ display: "flex", gap: "10px", marginTop: "14px", flexWrap: "wrap" }}>
                   {!cameraActive ? (
-                    <button className="btn btn-green" onClick={startCamera}>📷 Start Camera</button>
+                    <button className="btn btn-green" onClick={startCamera} style={{ minHeight: "52px", fontSize: "16px", fontWeight: 800, flex: 1 }}>
+                      🎥 Start Live Camera Detection
+                    </button>
                   ) : (
                     <>
-                      <button className="btn btn-red btn-sm" onClick={stopCamera}>⏹ Stop Camera</button>
+                      <button className="btn btn-red" onClick={stopCamera} style={{ minHeight: "52px", fontSize: "15px", fontWeight: 700 }}>
+                        ⏹ Stop Camera
+                      </button>
                       {tab === "ocr" && (
-                        <button className="btn btn-green" onClick={captureAndReadText} disabled={ocrRunning}>
+                        <button className="btn btn-green" onClick={captureAndReadText} disabled={ocrRunning} style={{ minHeight: "52px", fontSize: "15px", fontWeight: 700, flex: 1 }}>
                           {ocrRunning ? `📖 Reading… ${ocrProgress}%` : "📝 Read Text from Frame"}
                         </button>
                       )}

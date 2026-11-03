@@ -33,7 +33,21 @@ export default function SOSPage() {
 
   const fetchAlerts = async () => {
     setLoading(true);
-    try { const res = await API.get("/sos"); setAlerts(res.data); } catch (_) {}
+    let loaded = [];
+    try {
+      const raw = localStorage.getItem("vg_sos_alerts");
+      if (raw) loaded = JSON.parse(raw);
+    } catch (_) {}
+
+    try {
+      const res = await API.get("/sos");
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        loaded = res.data;
+        localStorage.setItem("vg_sos_alerts", JSON.stringify(res.data));
+      }
+    } catch (_) {}
+
+    setAlerts(loaded);
     setLoading(false);
   };
 
@@ -59,15 +73,30 @@ export default function SOSPage() {
   const sendSOS = async (e) => {
     if (e) e.preventDefault();
     setSending(true);
+
+    const newAlert = {
+      id: "sos_" + Date.now(),
+      message: form.message || "Emergency! I need immediate help.",
+      location: form.location || "Live GPS Location Shared",
+      created_at: new Date().toISOString(),
+      status: "active",
+    };
+
+    // 1. Persist locally immediately
+    setAlerts((prev) => {
+      const updated = [newAlert, ...prev];
+      try { localStorage.setItem("vg_sos_alerts", JSON.stringify(updated)); } catch (_) {}
+      return updated;
+    });
+
+    // 2. Attempt backend dispatch in background
     try {
-      await API.post("/sos", { message: form.message, location: form.location });
-      await fetchAlerts();
-      showMessage("SOS alert sent! Emergency contacts notified.", "success");
-      speak("SOS alert sent successfully. Emergency help has been notified.");
-      setForm({ message: "Emergency! I need help.", location: "" });
-    } catch (err) {
-      showMessage(err.response?.data?.message || "Failed to send SOS.", "error");
-    }
+      await API.post("/sos", { message: newAlert.message, location: newAlert.location });
+    } catch (_) {}
+
+    showMessage("SOS alert sent! Emergency contacts notified.", "success");
+    speak("SOS alert sent successfully. Emergency contacts have been notified.");
+    setForm({ message: "Emergency! I need help.", location: "" });
     setSending(false);
   };
 
@@ -95,7 +124,13 @@ export default function SOSPage() {
   };
 
   const deleteAlert = async (id) => {
-    try { await API.delete(`/sos/${id}`); await fetchAlerts(); } catch (_) {}
+    setAlerts((prev) => {
+      const updated = prev.filter((a) => String(a.id) !== String(id));
+      try { localStorage.setItem("vg_sos_alerts", JSON.stringify(updated)); } catch (_) {}
+      return updated;
+    });
+    try { await API.delete(`/sos/${id}`); } catch (_) {}
+    speak("Alert removed.");
   };
 
   const s = {

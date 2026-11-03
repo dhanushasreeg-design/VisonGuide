@@ -29,7 +29,7 @@ export default function ObjectDetectionScreen({ onBack }) {
 
     const res = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: false, // Instant capture for visually impaired users - no cropping screen
       quality: 0.8,
     });
 

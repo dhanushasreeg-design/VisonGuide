@@ -90,12 +90,7 @@ export default function VoiceAssistantScreen({ onNavigate, onBack }) {
       speak('Microphone stopped.');
     } else {
       setIsListening(true);
-      speak('Listening. Please say your command.');
-      // Auto-simulate listening completion for demonstration in Expo Go
-      setTimeout(() => {
-        setIsListening(false);
-        handleSendCommand('navigate to hospital');
-      }, 3500);
+      speak('Listening. Tap a quick action or speak your command.');
     }
   };
 
