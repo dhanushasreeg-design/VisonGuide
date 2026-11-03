@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "VisionGuide AI",
+    "slug": "visionguideai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#05080f"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.visionguideai.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "VisionGuide AI needs camera access for live obstacle detection and text OCR reading.",
+        "NSMicrophoneUsageDescription": "VisionGuide AI needs microphone access for voice assistant commands.",
+        "NSLocationWhenInUseUsageDescription": "VisionGuide AI needs your GPS location for navigation and emergency SOS alerts."
+      }
+    },
+    "android": {
+      "package": "com.visionguideai.mobile",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#05080f",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
