@@ -6,37 +6,61 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
+  Linking,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { apiRequest } from '../api/client';
 import Header from '../components/Header';
 import BigButton from '../components/BigButton';
 
+const STORAGE_KEY = 'vg_native_emergency_contacts';
+
+const DEFAULT_CONTACTS = [
+  { id: '1', name: 'Dr. Ramesh Kumar', relation: 'Family Physician', phone: '+919876543210' },
+  { id: '2', name: 'Ananya Sree', relation: 'Sister / Primary Caretaker', phone: '+919876512345' },
+  { id: '3', name: 'City Police Control', relation: 'Emergency Services', phone: '112' },
+  { id: '4', name: 'Ambulance Emergency', relation: 'Medical Response', phone: '108' },
+];
+
 export default function EmergencyContactsScreen({ onBack }) {
   const { speak, triggerHaptic } = useAccessibility();
-  const [contacts, setContacts] = useState([
-    { id: '1', name: 'Dr. Ramesh Kumar', relation: 'Family Physician', phone: '+91 98765 43210' },
-    { id: '2', name: 'Ananya Sree', relation: 'Sister / Primary Caretaker', phone: '+91 98765 12345' },
-    { id: '3', name: 'City Police Control', relation: 'Emergency Services', phone: '112' },
-  ]);
+  const [contacts, setContacts] = useState(DEFAULT_CONTACTS);
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('');
   const [phone, setPhone] = useState('');
 
   useEffect(() => {
-    apiRequest('/emergency')
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setContacts(data);
-      })
-      .catch(() => {});
+    async function loadContacts() {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setContacts(parsed);
+          }
+        }
+      } catch (_) {}
+
+      try {
+        const data = await apiRequest('/emergency');
+        if (Array.isArray(data) && data.length > 0) {
+          setContacts(data);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+      } catch (_) {}
+    }
+    loadContacts();
   }, []);
 
   const handleCall = (c) => {
     triggerHaptic('success');
-    speak(`Calling ${c.name}, ${c.relation}, at ${c.phone}`);
-    Alert.alert('📞 Direct Call', `Dialing ${c.name} (${c.phone})`);
+    const cleanPhone = (c.phone || '').replace(/[^0-9+]/g, '');
+    speak(`Calling ${c.name}. Opening phone dialer now.`);
+    Linking.openURL(`tel:${cleanPhone}`).catch((err) => {
+      console.warn('Could not launch dialer:', err);
+    });
   };
 
   const handleAdd = async () => {
@@ -52,7 +76,12 @@ export default function EmergencyContactsScreen({ onBack }) {
       phone: phone.trim(),
     };
 
-    setContacts((prev) => [newContact, ...prev]);
+    const updated = [newContact, ...contacts];
+    setContacts(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (_) {}
+
     setName('');
     setRelation('');
     setPhone('');
@@ -60,8 +89,19 @@ export default function EmergencyContactsScreen({ onBack }) {
     triggerHaptic('success');
     speak(`Added ${newContact.name} to your emergency contacts.`);
 
-    // Persist to backend
+    // Persist to backend if available
     apiRequest('/emergency', 'POST', newContact).catch(() => {});
+  };
+
+  const handleDelete = async (id, contactName) => {
+    triggerHaptic('medium');
+    const updated = contacts.filter((c) => String(c.id) !== String(id));
+    setContacts(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (_) {}
+    speak(`Deleted ${contactName} from emergency contacts.`);
+    apiRequest(`/emergency/${id}`, 'DELETE').catch(() => {});
   };
 
   return (
@@ -108,7 +148,16 @@ export default function EmergencyContactsScreen({ onBack }) {
         <Text style={styles.sectionHeader}>Saved Contacts ({contacts.length})</Text>
 
         {contacts.map((c) => (
-          <View key={c.id} style={styles.contactCard}>
+          <TouchableOpacity
+            key={c.id}
+            style={styles.contactCard}
+            activeOpacity={0.8}
+            onPress={() => {
+              triggerHaptic('light');
+              speak(`Emergency contact: ${c.name}. Relationship: ${c.relation}. Phone: ${c.phone}. Tap green phone button to dial.`);
+            }}
+            accessibilityLabel={`Contact ${c.name}, ${c.relation}, ${c.phone}`}
+          >
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{c.name.charAt(0).toUpperCase()}</Text>
             </View>
@@ -119,14 +168,23 @@ export default function EmergencyContactsScreen({ onBack }) {
               <Text style={styles.phone}>📞 {c.phone}</Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.callBtn}
-              onPress={() => handleCall(c)}
-              accessibilityLabel={`Call ${c.name}`}
-            >
-              <Text style={styles.callIcon}>📞</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                style={styles.callBtn}
+                onPress={() => handleCall(c)}
+                accessibilityLabel={`Call ${c.name} immediately`}
+              >
+                <Text style={styles.callIcon}>📞</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.callBtn, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}
+                onPress={() => handleDelete(c.id, c.name)}
+                accessibilityLabel={`Delete ${c.name}`}
+              >
+                <Text style={[styles.callIcon, { color: '#ef4444' }]}>🗑️</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </View>

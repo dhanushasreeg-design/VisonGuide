@@ -3,11 +3,12 @@ import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native
 import { useAccessibility } from '../context/AccessibilityContext';
 
 export default function BottomNav({ activeScreen, onSelectScreen }) {
-  const { settings, triggerHaptic } = useAccessibility();
+  const { settings, triggerHaptic, speak } = useAccessibility();
   const bB = settings.bigButtons || settings.accessibilityMode;
 
-  const handlePress = (screenName) => {
-    triggerHaptic('light');
+  const handlePress = (screenName, label) => {
+    triggerHaptic('medium');
+    speak(label || screenName);
     onSelectScreen(screenName);
   };
 
@@ -16,7 +17,7 @@ export default function BottomNav({ activeScreen, onSelectScreen }) {
       {/* Home */}
       <TouchableOpacity
         style={styles.navItem}
-        onPress={() => handlePress('Dashboard')}
+        onPress={() => handlePress('Dashboard', 'Opening Home Dashboard')}
         accessibilityLabel="Home Dashboard"
         accessibilityRole="tab"
         accessibilityState={{ selected: activeScreen === 'Dashboard' }}
@@ -28,7 +29,7 @@ export default function BottomNav({ activeScreen, onSelectScreen }) {
       {/* Navigation */}
       <TouchableOpacity
         style={styles.navItem}
-        onPress={() => handlePress('Navigation')}
+        onPress={() => handlePress('Navigation', 'Opening GPS Navigation Maps')}
         accessibilityLabel="Navigation Maps"
         accessibilityRole="tab"
         accessibilityState={{ selected: activeScreen === 'Navigation' }}
@@ -47,7 +48,7 @@ export default function BottomNav({ activeScreen, onSelectScreen }) {
             top: bB ? -16 : -12,
           },
         ]}
-        onPress={() => handlePress('VoiceAssistant')}
+        onPress={() => handlePress('VoiceAssistant', 'Opening Voice Assistant')}
         accessibilityLabel="Voice Assistant"
         accessibilityRole="button"
       >
@@ -57,7 +58,7 @@ export default function BottomNav({ activeScreen, onSelectScreen }) {
       {/* SOS Alert */}
       <TouchableOpacity
         style={styles.navItem}
-        onPress={() => handlePress('SOSAlert')}
+        onPress={() => handlePress('SOSAlert', 'Opening Emergency SOS Alert')}
         accessibilityLabel="SOS Emergency Alert"
         accessibilityRole="tab"
         accessibilityState={{ selected: activeScreen === 'SOSAlert' }}
@@ -69,7 +70,7 @@ export default function BottomNav({ activeScreen, onSelectScreen }) {
       {/* More / Menu */}
       <TouchableOpacity
         style={styles.navItem}
-        onPress={() => handlePress('MoreMenu')}
+        onPress={() => handlePress('MoreMenu', 'Opening More Features Menu')}
         accessibilityLabel="More options"
         accessibilityRole="tab"
         accessibilityState={{ selected: activeScreen === 'MoreMenu' }}

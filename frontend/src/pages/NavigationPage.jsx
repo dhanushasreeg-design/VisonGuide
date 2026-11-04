@@ -360,7 +360,7 @@ export default function NavigationPage() {
             } finally {
               clearTimeout(timer);
             }
-            const label = data?.display_name?.split(",").slice(0, 2).join(", ") || "Current Location";
+            const label = buildCleanAddress(data?.address) || data?.display_name?.split(",").slice(0, 3).join(", ") || "Current Location";
             const countryCode = data?.address?.country_code || "";
             settleResolve({
               lat,
@@ -394,7 +394,7 @@ export default function NavigationPage() {
           else if (err.code === 3) msg = "GPS search timed out. Check connection or enter a start address.";
           settleReject(new Error(msg));
         },
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     });
 

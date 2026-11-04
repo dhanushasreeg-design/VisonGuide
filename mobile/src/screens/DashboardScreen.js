@@ -34,7 +34,7 @@ const NEARBY = [
 
 export default function DashboardScreen({ onNavigate }) {
   const { user } = useAuth();
-  const { settings, speak } = useAccessibility();
+  const { settings, speak, triggerHaptic } = useAccessibility();
   const bB = settings.bigButtons || settings.accessibilityMode;
   const [greeting, setGreeting] = useState('Hello');
 
@@ -122,7 +122,12 @@ export default function DashboardScreen({ onNavigate }) {
         <View style={styles.quickGrid}>
           <TouchableOpacity
             style={[styles.featureCard, { borderColor: '#ef4444' }]}
-            onPress={() => onNavigate('SOSAlert')}
+            onPress={() => {
+              triggerHaptic('medium');
+              speak('Opening Emergency SOS Alert.');
+              onNavigate('SOSAlert');
+            }}
+            accessibilityLabel="Open Emergency SOS Alert"
           >
             <Text style={styles.featureIcon}>🚨</Text>
             <Text style={[styles.featureTitle, { color: '#ef4444' }]}>SOS Alert</Text>
@@ -131,16 +136,26 @@ export default function DashboardScreen({ onNavigate }) {
 
           <TouchableOpacity
             style={[styles.featureCard, { borderColor: '#a78bfa' }]}
-            onPress={() => onNavigate('ObjectDetection')}
+            onPress={() => {
+              triggerHaptic('medium');
+              speak('Opening Live Object Detection.');
+              onNavigate('ObjectDetection');
+            }}
+            accessibilityLabel="Open Live Object Detection"
           >
             <Text style={styles.featureIcon}>🔍</Text>
             <Text style={[styles.featureTitle, { color: '#a78bfa' }]}>Object Detection</Text>
-            <Text style={styles.featureDesc}>Potholes & obstacles</Text>
+            <Text style={styles.featureDesc}>Live obstacles & hazards</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.featureCard, { borderColor: '#f472b6' }]}
-            onPress={() => onNavigate('CameraOCR')}
+            onPress={() => {
+              triggerHaptic('medium');
+              speak('Opening Camera Text Reader.');
+              onNavigate('CameraOCR');
+            }}
+            accessibilityLabel="Open Camera Text Reader"
           >
             <Text style={styles.featureIcon}>📷</Text>
             <Text style={[styles.featureTitle, { color: '#f472b6' }]}>Camera OCR</Text>
@@ -149,11 +164,16 @@ export default function DashboardScreen({ onNavigate }) {
 
           <TouchableOpacity
             style={[styles.featureCard, { borderColor: '#22c55e' }]}
-            onPress={() => onNavigate('EmergencyContacts')}
+            onPress={() => {
+              triggerHaptic('medium');
+              speak('Opening Emergency Contacts.');
+              onNavigate('EmergencyContacts');
+            }}
+            accessibilityLabel="Open Emergency Contacts"
           >
             <Text style={styles.featureIcon}>📞</Text>
             <Text style={[styles.featureTitle, { color: '#22c55e' }]}>Contacts</Text>
-            <Text style={styles.featureDesc}>Call helpers</Text>
+            <Text style={styles.featureDesc}>Call doctors & helpers</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

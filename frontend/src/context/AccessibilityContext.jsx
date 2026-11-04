@@ -65,10 +65,18 @@ export function AccessibilityProvider({ children }) {
   };
 
   function _rawSpeak(text, lang, rate) {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang; u.rate = rate; u.volume = 1;
-    window.speechSynthesis.speak(u);
+    if (!text || typeof window === "undefined" || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang || "en-US";
+      u.rate = rate || 0.9;
+      u.volume = 1;
+      window.speechSynthesis.speak(u);
+    } catch (_) {}
   }
 
   const speak = (text, opts = {}) =>
@@ -82,6 +90,48 @@ export function AccessibilityProvider({ children }) {
 
   /* Get translated string for current language */
   const t = (key) => translate(s.language, key);
+
+  /* Global Accessible Single-Touch / Click Speech Announcer for blind users */
+  useEffect(() => {
+    let lastSpokenText = "";
+    let lastSpokenTime = 0;
+
+    const handlePointerOrClick = (e) => {
+      // Find closest interactive element
+      const target = e.target?.closest?.(
+        "button, a, [role='button'], input[type='button'], input[type='submit'], .btn, .linkCard, .chip, .nearbyBtn, .quick-card"
+      );
+      if (!target) return;
+
+      const now = Date.now();
+      let label =
+        target.getAttribute("aria-label") ||
+        target.getAttribute("title") ||
+        target.innerText ||
+        target.textContent ||
+        "";
+
+      // Clean up common noisy chars and icons
+      label = label
+        .replace(/[🎤📞🚨🗺️📷🚶📖📍🔍🛡️📋💬⚙️🏠🛑🔊🔄⚠️💡➕➖❌✅]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      if (label && label.length > 1 && label.length < 80) {
+        if (label === lastSpokenText && now - lastSpokenTime < 1200) {
+          return; // prevent double announcement on rapid tap
+        }
+        lastSpokenText = label;
+        lastSpokenTime = now;
+        speak(label);
+      }
+    };
+
+    document.addEventListener("click", handlePointerOrClick, { passive: true });
+    return () => {
+      document.removeEventListener("click", handlePointerOrClick);
+    };
+  }, [s.language, s.voiceSpeed]);
 
   return (
     <Ctx.Provider value={{ settings: s, update, updateMany, toggleTheme, toggleAccessibility, speak, speakT, t, LANGUAGES }}>

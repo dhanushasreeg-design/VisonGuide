@@ -28,15 +28,35 @@ export async function getCurrentGPSPosition() {
   }
 
   const loc = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
+    accuracy: Location.Accuracy.BestForNavigation, // Maximum accuracy for blind navigation
   });
 
   return {
     latitude: loc.coords.latitude,
     longitude: loc.coords.longitude,
+    accuracy: Math.round(loc.coords.accuracy || 5),
     speed: loc.coords.speed || 0,
     heading: loc.coords.heading || 0,
   };
+}
+
+export function watchGPSPosition(onUpdate, onError) {
+  return Location.watchPositionAsync(
+    {
+      accuracy: Location.Accuracy.BestForNavigation,
+      timeInterval: 2000,
+      distanceInterval: 1, // trigger update every 1 meter moved
+    },
+    (loc) => {
+      onUpdate({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        accuracy: Math.round(loc.coords.accuracy || 5),
+        speed: loc.coords.speed || 0,
+        heading: loc.coords.heading || 0,
+      });
+    }
+  ).catch(onError);
 }
 
 export async function getCleanAddress(lat, lon) {
@@ -44,7 +64,8 @@ export async function getCleanAddress(lat, lon) {
     const res = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
     if (res && res.length > 0) {
       const p = res[0];
-      return [p.name, p.street, p.district, p.city].filter(Boolean).join(', ');
+      const parts = [p.name, p.street, p.subregion || p.district, p.city, p.postalCode, p.country].filter(Boolean);
+      return parts.join(', ');
     }
   } catch (_) {}
   return `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;

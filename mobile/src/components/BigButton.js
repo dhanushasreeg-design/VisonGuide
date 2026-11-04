@@ -16,7 +16,9 @@ export default function BigButton({
 
   const handlePress = () => {
     if (disabled) return;
-    triggerHaptic('light');
+    triggerHaptic('medium');
+    // Speak on single tap so visually impaired users immediately hear what was touched
+    speak(accessibilityLabel || title);
     onPress?.();
   };
 

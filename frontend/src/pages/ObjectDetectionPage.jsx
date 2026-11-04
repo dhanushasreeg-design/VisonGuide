@@ -704,7 +704,10 @@ export default function ObjectDetectionPage() {
       const v = videoRef.current;
       if (v) {
         v.srcObject = stream;
-        try { await v.play(); } catch {}
+        v.setAttribute("autoplay", "true");
+        v.setAttribute("playsinline", "true");
+        v.setAttribute("muted", "true");
+        try { await v.play(); } catch (_) {}
       }
       setCameraActive(true);
       lastSpokenRef.current = "";
@@ -969,7 +972,9 @@ export default function ObjectDetectionPage() {
                 <div style={{ position: "relative", background: "#000", borderRadius: "10px", overflow: "hidden", minHeight: "280px" }}>
                   <video ref={videoRef}
                     style={{ width: "100%", display: cameraActive ? "block" : "none" }}
-                    muted playsInline />
+                    autoPlay
+                    muted
+                    playsInline />
                   <canvas ref={camCanvasRef}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
                   {!cameraActive && (

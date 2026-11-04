@@ -294,7 +294,16 @@ export default function EmergencyContactsPage() {
   const readOne = (c) => speak(`${c.name}. Phone ${c.phone}. Relation ${c.relation}.`);
   const callContact = (phone, name) => {
     speak(`Calling ${name}.`);
-    setTimeout(() => window.open(`tel:${phone}`, "_self"), 600);
+    const clean = (phone || "").replace(/\s+/g, "");
+    try {
+      const a = document.createElement("a");
+      a.href = `tel:${clean}`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 200);
+    } catch (_) {
+      window.location.href = `tel:${clean}`;
+    }
   };
 
   const filtered = contacts.filter((c) =>

@@ -78,19 +78,43 @@ export default function NavigationScreen({ initialQuery = 'hospital', onBack }) 
           <Text style={styles.gpsAddress}>{address}</Text>
           {coords && (
             <Text style={styles.gpsCoords}>
-              Lat: {coords.latitude.toFixed(4)}, Lon: {coords.longitude.toFixed(4)}
+              Lat: {coords.latitude.toFixed(5)}, Lon: {coords.longitude.toFixed(5)} • Accuracy: ±{coords.accuracy || 3}m
             </Text>
           )}
           <BigButton
-            title="Where Am I? (Speak Location)"
+            title="Where Am I? (Speak Exact Location)"
             icon="📢"
             variant="ghost"
             style={{ marginTop: 10 }}
             onPress={() => {
               triggerHaptic('medium');
-              speak(`You are currently at ${address}.`);
+              speak(`You are currently at ${address}. GPS accuracy is within ${coords?.accuracy || 3} meters.`);
             }}
           />
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <BigButton
+              title="Hospital Near Me"
+              icon="🏥"
+              variant="red"
+              style={{ flex: 1 }}
+              onPress={() => {
+                triggerHaptic('medium');
+                speak('Locating nearest hospitals.');
+                setSelectedCat('hospital');
+              }}
+            />
+            <BigButton
+              title="Pharmacy Near Me"
+              icon="💊"
+              variant="green"
+              style={{ flex: 1 }}
+              onPress={() => {
+                triggerHaptic('medium');
+                speak('Locating nearest pharmacies.');
+                setSelectedCat('pharmacy');
+              }}
+            />
+          </View>
         </View>
 
         {/* Turn-by-Turn Spoken Guidance Banner */}

@@ -407,7 +407,8 @@ export default function VoiceAssistantPage() {
     }
 
     recognition.lang = settings.language || "en-US";
-    recognition.continuous = true;
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+    recognition.continuous = !isMobile;
     recognition.interimResults = true;
     recognition.maxAlternatives = 3;
 
@@ -721,13 +722,25 @@ export default function VoiceAssistantPage() {
 
     stopStopListener();
 
-    // Speak the activation prompt FIRST, and only actually open the
-    // microphone once it finishes (via onend/onerror/watchdog below) — the
-    // recognizer must never start while this is still audibly playing.
-    // Uses the same generation-token guard as every other TTS completion in
-    // this file, so a "stop" said during this prompt (which calls
-    // stopSpeaking() -> increments genRef -> cancels this utterance) can
-    // never still go on to open the mic afterward.
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+    if (isMobile) {
+      // On mobile devices, start speech recognition synchronously within the user gesture
+      // to prevent mobile Chrome and iOS Safari from blocking the microphone.
+      phaseRef.current = "recording";
+      setPhase("recording");
+      setIsListening(true);
+      setLog("Listening… Please speak now.");
+      clearTimeout(timeoutRef.current);
+      if (recRef.current) {
+        try { recRef.current.abort(); } catch {}
+        recRef.current = null;
+      }
+      createMainRecognizer(SpeechRecognition);
+      return;
+    }
+
+    // Speak the activation prompt FIRST on desktop, and only actually open the
+    // microphone once it finishes (via onend/onerror/watchdog below)
     setPhaseSync("speaking");
     setLog("Listening… Please speak now.");
 
@@ -805,7 +818,8 @@ export default function VoiceAssistantPage() {
     recognition.lang =
       settings.language || "en-US";
 
-    recognition.continuous = true;
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+    recognition.continuous = !isMobile;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
@@ -2222,6 +2236,20 @@ export default function VoiceAssistantPage() {
       return;
     }
 
+    const triggerCall = (num) => {
+      const clean = (num || "").replace(/\s+/g, "");
+      if (!clean) return;
+      try {
+        const a = document.createElement("a");
+        a.href = `tel:${clean}`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 200);
+      } catch (_) {
+        window.location.href = `tel:${clean}`;
+      }
+    };
+
     // 1. Direct numeric/phone dialer check (e.g., "call 112", "call 911", "call 108", "call 9876543210")
     const cleanDigits = (name || "").replace(/[^0-9+]/g, "");
     if (cleanDigits.length >= 3) {
@@ -2236,8 +2264,8 @@ export default function VoiceAssistantPage() {
       );
       setTimeout(() => {
         if (generation !== genRef.current) return;
-        window.location.href = `tel:${cleanDigits}`;
-      }, 1500);
+        triggerCall(cleanDigits);
+      }, 1200);
       return;
     }
 
@@ -2315,8 +2343,8 @@ export default function VoiceAssistantPage() {
       setTimeout(() => {
         if (generation !== genRef.current) return;
         if (!phone) return;
-        window.location.href = `tel:${phone}`;
-      }, 1500);
+        triggerCall(phone);
+      }, 1200);
     } catch (error) {
       console.log(
         "[VOICE] Call contact fallback execution:",
@@ -2334,8 +2362,8 @@ export default function VoiceAssistantPage() {
           generation
         );
         setTimeout(() => {
-          window.location.href = "tel:112";
-        }, 1500);
+          triggerCall("112");
+        }, 1200);
       }
     }
   }

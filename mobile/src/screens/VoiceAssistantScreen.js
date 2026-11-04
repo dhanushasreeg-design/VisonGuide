@@ -152,7 +152,10 @@ export default function VoiceAssistantScreen({ onNavigate, onBack }) {
             <TouchableOpacity
               key={cmd}
               style={styles.quickChip}
-              onPress={() => handleSendCommand(cmd)}
+              onPress={() => {
+                speak(cmd);
+                handleSendCommand(cmd);
+              }}
             >
               <Text style={styles.quickChipText}>⚡ {cmd}</Text>
             </TouchableOpacity>

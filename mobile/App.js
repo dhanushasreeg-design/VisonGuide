@@ -104,8 +104,8 @@ function NativeNavigator({ onSwitchToWeb }) {
 }
 
 export default function App() {
-  // Modes: 'cloud' (HTTPS GitHub Pages), 'local' (LAN Dev server), 'native' (offline JS screens)
-  const [mode, setMode] = useState('cloud');
+  // Modes: 'native' (Accessible single-tap, spoken cues, native camera & GPS), 'cloud' (Web HTTPS), 'local' (LAN Dev)
+  const [mode, setMode] = useState('native');
   const [canGoBack, setCanGoBack] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -151,9 +151,9 @@ export default function App() {
   }, [canGoBack, mode]);
 
   const cycleMode = () => {
-    if (mode === 'cloud') setMode('local');
-    else if (mode === 'local') setMode('native');
-    else setMode('cloud');
+    if (mode === 'native') setMode('cloud');
+    else if (mode === 'cloud') setMode('local');
+    else setMode('native');
     setHasError(false);
   };
 
