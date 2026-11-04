@@ -566,7 +566,8 @@ export default function NavigationPage() {
     let text = `Found ${displayList.length} nearby ${catLabel}. `;
     top.forEach((p, i) => {
       const distText = p.formattedDist || (p.distM != null ? `${fmtDist(p.distM)} away` : "");
-      text += `${i + 1}: ${p.name}, ${distText}. `;
+      const dirText = p.direction ? ` to the ${p.direction}` : "";
+      text += `${i + 1}: ${p.name}, ${distText}${dirText}. `;
     });
     text += `Tap any card or click navigate to start routing.`;
     speak(text);
@@ -597,7 +598,9 @@ export default function NavigationPage() {
         const res = await fetch(url, { signal: ctrl.signal });
         const data = await safeJson(res);
         if (data.code === "Ok" && data.routes?.length) {
-          return data.routes[0];
+          const routeRes = data.routes[0];
+          routeRes._usedFallback = base.includes("project-osrm.org") && mode.key !== "driving";
+          return routeRes;
         }
         lastError = new Error(data.message || "No route found on this mapping server.");
       } catch (err) {
@@ -885,10 +888,15 @@ export default function NavigationPage() {
     if (reqToken !== routeReqRef.current) return;
 
     const steps = buildSteps(osrmRoute);
-    const { duration, isEstimate } = estimateDuration(mode.key, osrmRoute.distance, osrmRoute.duration);
+    const isFallback = Boolean(osrmRoute._usedFallback);
+    let finalDist = osrmRoute.distance;
+    if (isFallback && mode.distMultiplier) {
+      finalDist = Math.round(osrmRoute.distance * mode.distMultiplier);
+    }
+    const { duration, isEstimate } = estimateDuration(mode.key, finalDist, isFallback ? null : osrmRoute.duration);
 
     const routeData = {
-      distance: osrmRoute.distance,
+      distance: finalDist,
       duration,
       durationIsEstimate: isEstimate,
       noLiveTraffic: mode.key === "driving",
@@ -919,7 +927,7 @@ export default function NavigationPage() {
     API.post("/navigation", { destination: destLabel }).catch(() => {});
 
     // Audio summary for blind user
-    const distKm = (osrmRoute.distance / 1000).toFixed(1);
+    const distKm = (finalDist / 1000).toFixed(1);
     const minutes = Math.max(1, Math.round(duration / 60));
     const timePhrase = isEstimate ? `approximately ${minutes} minutes` : `${minutes} minutes`;
     const eta = fmtETA(duration);

@@ -13,9 +13,12 @@ export const ROUTING_MODES = [
     icon: "🚶",
     osrm: "foot",
     endpoints: [
+      "https://routing.openstreetmap.de/routed-foot/route/v1/foot",
       "https://routing.openstreetmap.de/routed-foot/route/v1/driving",
       "https://router.project-osrm.org/route/v1/driving",
     ],
+    speedMps: 1.4, // ~5.0 km/h
+    distMultiplier: 0.90, // pedestrian footpaths & cut-throughs are shorter
     gmapsDirflg: "w",
     travelmode: "walking",
   },
@@ -25,9 +28,12 @@ export const ROUTING_MODES = [
     icon: "🚲",
     osrm: "cycling",
     endpoints: [
+      "https://routing.openstreetmap.de/routed-bike/route/v1/bicycle",
       "https://routing.openstreetmap.de/routed-bike/route/v1/driving",
       "https://router.project-osrm.org/route/v1/driving",
     ],
+    speedMps: 5.0, // ~18.0 km/h
+    distMultiplier: 1.0,
     gmapsDirflg: "b",
     travelmode: "bicycling",
   },
@@ -40,13 +46,33 @@ export const ROUTING_MODES = [
       "https://router.project-osrm.org/route/v1/driving",
       "https://routing.openstreetmap.de/routed-car/route/v1/driving",
     ],
+    speedMps: 11.1, // ~40.0 km/h
+    distMultiplier: 1.15, // one-way streets, divided highways, turn loops
     gmapsDirflg: "d",
     travelmode: "driving",
   },
 ];
 
 export const WALK_SPEED_MPS = 1.4;  // ~5.0 km/h walking speed
-export const CYCLE_SPEED_MPS = 4.2; // ~15.1 km/h cycling speed
+export const CYCLE_SPEED_MPS = 5.0; // ~18.0 km/h cycling speed
+export const CAR_SPEED_MPS = 11.1;  // ~40.0 km/h driving speed
+
+/**
+ * Calculates compass heading / direction between two coordinates.
+ * Returns: "North", "North-East", "East", "South-East", "South", "South-West", "West", "North-West"
+ */
+export const calculateBearing = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return "Ahead";
+  const y = Math.sin(((lon2 - lon1) * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180);
+  const x =
+    Math.cos((lat1 * Math.PI) / 180) * Math.sin((lat2 * Math.PI) / 180) -
+    Math.sin((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.cos(((lon2 - lon1) * Math.PI) / 180);
+  const θ = Math.atan2(y, x);
+  const brng = (((θ * 180) / Math.PI) + 360) % 360;
+  const dirs = ["North", "North-East", "East", "South-East", "South", "South-West", "West", "North-West"];
+  const idx = Math.round(brng / 45) % 8;
+  return dirs[idx];
+};
 
 /**
  * Calculates Haversine distance in metres between two coordinates.
@@ -187,20 +213,21 @@ export const checkArrivalEligibility = (currentStepIdx, totalSteps, distanceToDe
 export const estimateTravelDuration = (modeKey, distanceM, engineDuration) => {
   const dist = Math.max(0, Number(distanceM) || 0);
   if (modeKey === "foot") {
-    const nominal = dist / WALK_SPEED_MPS;
-    if (engineDuration && engineDuration >= nominal * 0.6) {
-      return { duration: engineDuration, isEstimate: false };
-    }
-    return { duration: nominal, isEstimate: true };
+    // Pedestrian walking at ~5 km/h (1.4 m/s)
+    const nominal = Math.round(dist / WALK_SPEED_MPS);
+    return { duration: Math.max(60, nominal), isEstimate: true };
   }
   if (modeKey === "cycling") {
-    const nominal = dist / CYCLE_SPEED_MPS;
-    if (engineDuration && engineDuration >= nominal * 0.6) {
-      return { duration: engineDuration, isEstimate: false };
-    }
-    return { duration: nominal, isEstimate: true };
+    // Bicycle / two-wheeler riding at ~18 km/h (5.0 m/s)
+    const nominal = Math.round(dist / CYCLE_SPEED_MPS);
+    return { duration: Math.max(30, nominal), isEstimate: true };
   }
-  return { duration: engineDuration || (dist / 10), isEstimate: false };
+  // Car / driving mode at ~40 km/h (11.1 m/s) or engine duration
+  if (engineDuration && engineDuration >= 15) {
+    return { duration: Math.round(engineDuration), isEstimate: false };
+  }
+  const nominal = Math.round(dist / CAR_SPEED_MPS);
+  return { duration: Math.max(20, nominal), isEstimate: true };
 };
 
 /**
@@ -444,6 +471,7 @@ export const searchNearbyPlaces = async (category = "all", userLat, userLon, opt
       lat,
       lon,
       distM,
+      direction: calculateBearing(userLat, userLon, lat, lon),
       formattedDist: formatDistanceForSpeech(distM),
     });
   }
