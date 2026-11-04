@@ -34,7 +34,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import MoreMenuScreen from './src/screens/MoreMenuScreen';
 
 const CLOUD_URL = 'https://dhanushasreeg-design.github.io/VisonGuide/';
-const LOCAL_URL = 'http://192.168.1.9:3000/';
+const LOCAL_URL = 'http://172.23.30.100:3000/';
 
 function NativeNavigator({ onSwitchToWeb }) {
   const [currentScreen, setCurrentScreen] = useState('Dashboard');
